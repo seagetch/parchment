@@ -1,0 +1,22 @@
+{
+  "name": "libinput",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron "
+  },
+  "dependencies": {
+    "electron": "^6.0.11",
+    "electron-rebuild": "^1.8.6",
+    "epoll": "^3.0.0",
+    "ffi-napi": "github:node-ffi-napi/node-ffi-napi",
+    "jquery": "^3.4.1",
+    "node-gyp": "^5.0.4",
+    "ref-struct": "^1.1.0"
+  },
+  "devDependencies": {},
+  "author": "",
+  "license": "ISC"
+}
