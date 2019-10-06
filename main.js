@@ -1,11 +1,13 @@
+const electron = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron')
+
+/*
+var fs = require('fs');
 var ffi = require('ffi-napi');
 var ref = require('ref-napi');
 var Struct = require('ref-struct');
-var fs = require('fs');
 var epoll = require('epoll').Epoll;
 
-const electron = require('electron');
-const { app, BrowserWindow, ipcMain } = require('electron')
 
 function open_callback(path, flag, user_data) {
     var fd = fs.openSync(path, flag, 0o400);
@@ -55,8 +57,9 @@ const LIBINPUT_EVENT_TABLET_TOOL_TIP = 602;
 const LIBINPUT_EVENT_TABLET_TOOL_BUTTON = 603;
 
 var current_screen = null;
+*/
 var current_channel = null;
-
+/*
 function libinput_main() {
     libinput_interface = new libinput_interface_type();
     libinput_interface.open_restricted  = open_callback;
@@ -83,11 +86,10 @@ function libinput_main() {
         switch (event_type) {
         case LIBINPUT_EVENT_TABLET_TOOL_AXIS:
         case LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY:
-        case LIBINPUT_EVENT_TABLET_TOOL_TIP:
-        case LIBINPUT_EVENT_TABLET_TOOL_BUTTON: {
+        case LIBINPUT_EVENT_TABLET_TOOL_TIP: {
             var ev_tablet = {
-                x: current_screen? libinput.libinput_event_tablet_tool_get_x_transformed(event, current_screen.bounds.width): -1,
-                y: current_screen? libinput.libinput_event_tablet_tool_get_y_transformed(event, current_screen.bounds.height): -1,
+                x: current_screen? libinput.libinput_event_tablet_tool_get_x_transformed(event, current_screen.bounds.width) + current_screen.bounds.x: -1,
+                y: current_screen? libinput.libinput_event_tablet_tool_get_y_transformed(event, current_screen.bounds.height) + current_screen.bounds.y: -1,
                 pressure: libinput.libinput_event_tablet_tool_get_pressure(event),
                 tilt_x: libinput.libinput_event_tablet_tool_get_tilt_x(event),
                 tilt_y: libinput.libinput_event_tablet_tool_get_tilt_y(event),
@@ -98,6 +100,7 @@ function libinput_main() {
             else
                 console.log("Fatal: current_channel is NULL.")
         } break;
+        case LIBINPUT_EVENT_TABLET_TOOL_BUTTON:
         case 0:
             break;
         default:
@@ -110,10 +113,21 @@ function libinput_main() {
     });
     poller.add(fd, epoll.EPOLLIN);
 }
-
+*/
 app.on("ready", ()=>{
+    let point = electron.screen.getCursorScreenPoint();
+    current_screen = electron.screen.getDisplayNearestPoint(point);
+    ipcMain.on("start", (event)=>{
+        console.log("got start event.")
+        current_channel = event;
+        current_channel.reply("screen-size", current_screen.bounds)
+    });
+
+    console.dir(current_screen.bounds)
     var window = new BrowserWindow({
         width: 800, height: 600,
+        x: current_screen.bounds.x + (current_screen.bounds.width  - 800) / 2,
+        y: current_screen.bounds.y + (current_screen.bounds.height - 600) / 2,
         webPreferences: {
             nodeIntegration: true
         }
@@ -126,12 +140,6 @@ app.on("ready", ()=>{
     window.setMenuBarVisibility(false);
     window.show();
 
-    libinput_main();
-    let winBounds = window.getBounds();
-    current_screen = electron.screen.getDisplayNearestPoint({x: winBounds.x, y: winBounds.y})
+//    libinput_main();
 });
 
-ipcMain.on("start", (event)=>{
-    console.log("got start event.")
-    current_channel = event;
-});
