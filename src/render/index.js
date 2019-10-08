@@ -4,12 +4,63 @@ const ref = require('ref-napi');
 const Struct = require('ref-struct-di')(ref);
 const ArrayType = require('ref-array-di')(ref);
 const gegl = require('./gegl.js');
-const LibInput = require('./libinput.js')
+const LibInput = require('./libinput.js');
+const mypaint = require('./libmypaint.js')
 
 var gnode;
 var buffer;
 var top_node;
 var out_node;
+
+var dirty = false;
+var move_count = 0;
+var queued = null;
+
+function blit(canvas, direct = false, drect=null) {
+    do_blit = () => {
+        if (drect && (direct.width == 0 || drect.height == 0))
+            return;
+//        if (drect)
+//            console.log("rect="+drect.x+","+drect.y+"-"+drect.width+","+drect.height)
+//        if (dirty) {
+            let ctx = canvas.getContext("2d");
+            let imageData = (!drect)? ctx.getImageData(0, 0, canvas.width, canvas.height): ctx.getImageData(drect.x, drect.y, drect.width, drect.height);
+            let destBuf = Buffer.from(imageData.data.buffer);
+            let stride = ref.alloc("int")
+            let rect = new gegl.GeglRectangle();
+            if (!drect) {
+                rect.x = 0; rect.y = 0; rect.width = canvas.width; rect.height = canvas.height;
+            } else {
+                rect.x = drect.x; rect.y = drect.y; rect.width = drect.width; rect.height = drect.height;
+            }
+            var buf  = gegl.gegl_buffer_linear_open(buffer, rect.ref(), stride, gegl.babl_format("R'G'B'A u8"));
+            let st = stride.deref();
+            var buf2 = ref.reinterpret(buf, st * rect.height * 4, 0);
+            if (st == rect.width * 4) {
+                buf2.copy(destBuf, 0, 0, rect.width * rect.height * 4);
+            } else {
+                for (let y = 0; y < rect.height; y ++)
+                    buf2.copy(destBuf, rect.width * y * 4, st * y, st * (y + 1));
+            }
+            gegl.gegl_buffer_linear_close(buffer, buf);
+
+            ctx.putImageData(imageData, rect.x, rect.y);
+            dirty = false;
+//        }
+        queued = null;
+    };
+    if (direct || move_count % 1000 == 0) {
+        if (queued)
+            window.clearTimeout(queued)
+        do_blit();
+    } else if (!queued) {
+        setImmediate(do_blit)
+//        queued = window.setTimeout(do_blit, 100);
+    }
+    move_count ++;
+}
+
+
 function run_gegl() {
     console.log("run_gegl")
     var rect = new gegl.GeglRectangle();
@@ -17,8 +68,8 @@ function run_gegl() {
     rect.width = $("#canvas")[0].width
     rect.height = $("#canvas")[0].height
     console.log("Create canvas of size "+rect.width + ","+rect.height)
-    buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'G'B'A u8"));
-    var buf  = gegl.gegl_buffer_linear_open(buffer, null, null, gegl.babl_format("Y' u8"));
+    buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'aG'aB'aA u15"));
+    var buf  = gegl.gegl_buffer_linear_open(buffer, rect.ref(), null, gegl.babl_format("Y' u8"));
     var buf2 = ref.reinterpret(buf, canvas.width*canvas.height, 0);
     buf2.type = ref.types.uint8;
     buf2.fill(255);
@@ -29,14 +80,27 @@ function run_gegl() {
     out_node  = gegl.gegl_node_new_child('string', 'pointer')(gnode, "operation", "gegl:nop", null);
     gegl.gegl_node_link_many('pointer')(top_node, out_node, null);
 
+    blit($("#canvas")[0], true)
     //g_object_unref(gnode);
     //g_object_unref(buffer);
+}
 
+var brush;
+var gegl_surface;
+var surface;
+
+function run_mypaint() {
+    brush = mypaint.mypaint_brush_new();
+    mypaint.mypaint_brush_from_defaults(brush);
+    gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
+    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, buffer);
+    surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
 }
 
 var vector = null;
 var over_node, stroke;
 var rendering = false;
+var last_event = {x: 0, y: 0, time: 0}
 function tablet_motion(ev, tablet) {
     let canvas = $("#canvas")[0];
     let client = canvas.getBoundingClientRect();
@@ -44,104 +108,31 @@ function tablet_motion(ev, tablet) {
     let offset_y = tablet.y - (client.top + window.screenTop);
     if (tablet.pressure > 0) {
         if (!vector) {
+            vector = true;
             console.log("press")
-            // press event
-            vector     = gegl.gegl_path_new();
-            over_node  = gegl.gegl_node_new_child('string', 'pointer')(gnode, "operation", "gegl:over", null);
-            stroke     = gegl.gegl_node_new_child('string', 
-                                                  'string', 'pointer', 
-                                                  'string', 'double', 
-                                                  'string', 'pointer', 
-                                                  'string', 'double',
-                                                  'string', 'double',
-                                                  'pointer')(
-                                             gnode, "operation", 
-                                             "gegl:path",
-                                             "d", vector,
-                                             "fill-opacity", 0.0,
-                                             "stroke", gegl.gegl_color_new("rgba(.5, .5, .5, 0.8)"),
-                                             "stroke-width", 60,
-                                             "stroke-hardness", 0.6,
-                                             null);
-            gegl.gegl_node_link_many('pointer', 'pointer')(top_node, over_node, out_node, null);
-            gegl.gegl_node_connect_to(stroke, "output", over_node, "aux");
-            gegl.gegl_path_append('char', 'double', 'double', 'pointer')(vector, 'M', offset_x, offset_y, null);
+            mypaint.mypaint_brush_new_stroke(brush);
+            dirty = true;
         } else {
             console.log("motion")
+            let dtime = (tablet.time - last_event.time)/1000.0;
+            let rect = new mypaint.MyPaintRectangle();
+            mypaint.mypaint_surface_begin_atomic(surface);
+            mypaint.mypaint_brush_stroke_to(brush, surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
+            mypaint.mypaint_surface_end_atomic(surface, rect.ref());
+            last_event = tablet;
+            dirty = true;
+            blit(canvas, false, rect);
+    
             // motion event
-            gegl.gegl_path_append('char', 'double', 'double', 'pointer')(vector, 'L', offset_x, offset_y, null);
         }
     } else {
         if (vector) {
-            if (!rendering) {
-                rendering = true;
-                console.log("release")
-                // rlease event
-                let roi = new gegl.GeglRectangle();
-                let x0 = ref.alloc('double'), y0 = ref.alloc('double')
-                let x1 = ref.alloc('double'), y1 = ref.alloc('double')
-                gegl.gegl_path_get_bounds(vector, x0, x1, y0, y1);
-
-                roi.x = x0.deref() - 60;
-                roi.y = y0.deref() - 60;
-                roi.width = x1.deref() - x0.deref() + 60 * 2;
-                roi.height = y1.deref() - y0.deref() + 60 * 2;
-
-                let writebuf = gegl.gegl_node_new_child('string', 'string', 'pointer', 'pointer')(
-                                            gnode, "operation", 
-                                            "gegl:write-buffer",
-                                            "buffer",    buffer,
-                                            null);
-                gegl.gegl_node_link_many('pointer')(over_node, writebuf, null);
-
-    //            let processor = gegl.gegl_node_new_processor(writebuf, roi.ref());
-                gegl.gegl_node_process.async(writebuf, () => {
-//                    gegl.g_object_unref(processor);
-                    gegl.g_object_unref(writebuf);
-        
-                    gegl.gegl_node_link_many('pointer')(top_node, out_node, null);
-                    gegl.g_object_unref(over_node);
-                    gegl.g_object_unref(stroke);
-                    rendering = false;
-                    over_node = null;
-                    stroke   = null;
-                    vector = null;
-
-                    let ctx = canvas.getContext("2d");
-                    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    let destBuf = Buffer.from(imageData.data.buffer);
-                    destBuf.fill(192); // check whether destBuf and putImage works well.
-                    console.log("linear_open")
-                    let stride = ref.alloc("int")
-                    var buf  = gegl.gegl_buffer_linear_open(buffer, null, stride, gegl.babl_format("R'G'B'A u8"));
-                    console.log("Buffer.from: w="+canvas.width+",h="+canvas.height);
-                    var buf2 = ref.reinterpret(buf, canvas.width * canvas.height * 4, 0);
-//                    var rawBuffer = Buffer.from(buf, 0, canvas.width * canvas.height * 4);
-                    console.log("dump")
-                    console.log("copy")
-                    try {
-                        buf2.copy(destBuf, 0, 0, canvas.width * canvas.height * 4);
-                    } catch(e) {
-                        console.log(e)
-                    }
-                    console.log("linear_close")
-                    gegl.gegl_buffer_linear_close(buffer, buf);
-
-                    ctx.putImageData(imageData, 0, 0);
-                
-                    console.log("done paint");
-                });
-            }
+            console.log("release")
+            mypaint.mypaint_brush_reset(brush);
+            blit(canvas,true);
         }
+        vector = false;
     }
-
-
-//    ctx.fillStyle="white";
-//    ctx.beginPath();
-//    let offset_x = tablet.x - (client.left + window.screenLeft);
-//    let offset_y = tablet.y - (client.top + window.screenTop);
-//    ctx.arc(offset_x, offset_y, 20 * tablet.pressure, 0, Math.PI*2, false);
-//    ctx.fill();
 }    
 
 var libinput;
@@ -153,9 +144,10 @@ function run_libinput(screen_size) {
 
 $(window).on("load", () =>{
     run_gegl();
+    run_mypaint();
+    ipcRenderer.send("start");
 })
 
 ipcRenderer.on("screen-size", (event, bounds) => {
     run_libinput(bounds);
 })
-ipcRenderer.send("start");

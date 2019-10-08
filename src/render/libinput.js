@@ -42,6 +42,7 @@ class LibInput {
             'libinput_event_tablet_tool_get_rotation': ['double', ['pointer']],
             'libinput_event_tablet_tool_get_x_transformed': ['double',['pointer', ref.types.uint32]],
             'libinput_event_tablet_tool_get_y_transformed': ['double',['pointer', ref.types.uint32]],
+            'libinput_event_tablet_tool_get_time': ['uint32', ['pointer']]
         }));
 
 
@@ -70,38 +71,38 @@ class LibInput {
         this.libinput_dispatch(this.li);
         var i = 0;
         var poller = new epoll((err, fd, events) => {
-            var event_type = this.libinput_next_event_type(this.li);
-            var event = this.libinput_get_event(this.li);
-            if (!event) {
-                this.libinput_unref(this.li);
-                console.log("Ended")
-                return;
-            }
-            // handle the event here
-            switch (event_type) {
-            case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:
-            case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY:
-            case this.LIBINPUT_EVENT_TABLET_TOOL_TIP: {
-                let ev_tablet = {
-                    x: this.current_bounds? this.libinput_event_tablet_tool_get_x_transformed(event, this.current_bounds.width ) + this.current_bounds.x: -1,
-                    y: this.current_bounds? this.libinput_event_tablet_tool_get_y_transformed(event, this.current_bounds.height) + this.current_bounds.y: -1,
-                    pressure: this.libinput_event_tablet_tool_get_pressure(event),
-                    tilt_x: this.libinput_event_tablet_tool_get_tilt_x(event),
-                    tilt_y: this.libinput_event_tablet_tool_get_tilt_y(event),
-                    rotation: this.libinput_event_tablet_tool_get_rotation(event),
+            while (true) {
+                this.libinput_dispatch(this.li);
+                var event_type = this.libinput_next_event_type(this.li);
+                if (event_type == 0)
+                    return;
+                var event = this.libinput_get_event(this.li);
+                // handle the event here
+                switch (event_type) {
+                case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:
+                case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY:
+                case this.LIBINPUT_EVENT_TABLET_TOOL_TIP: {
+                    let ev_tablet = {
+                        x: this.current_bounds? this.libinput_event_tablet_tool_get_x_transformed(event, this.current_bounds.width ) + this.current_bounds.x: -1,
+                        y: this.current_bounds? this.libinput_event_tablet_tool_get_y_transformed(event, this.current_bounds.height) + this.current_bounds.y: -1,
+                        pressure: this.libinput_event_tablet_tool_get_pressure(event),
+                        tilt_x: this.libinput_event_tablet_tool_get_tilt_x(event),
+                        tilt_y: this.libinput_event_tablet_tool_get_tilt_y(event),
+                        rotation: this.libinput_event_tablet_tool_get_rotation(event),
+                        time: this.libinput_event_tablet_tool_get_time(event)
+                    }
+                    callback("tablet", ev_tablet);
+                } break;
+                case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:
+                case 0:
+                    break;
+                default:
+                    console.log("Event:"+event_type)
+                    break;
                 }
-                callback("tablet", ev_tablet)
-            } break;
-            case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:
-            case 0:
-                break;
-            default:
-                console.log("Event:"+event_type)
-                break;
-            }
-            this.libinput_event_destroy(event);
-            i++;
-            this.libinput_dispatch(this.li);
+                this.libinput_event_destroy(event);
+                i++;
+            }   
         });
         poller.add(fd, epoll.EPOLLIN);
     }
