@@ -1,11 +1,9 @@
 const { ipcRenderer } = require('electron')
 const electron = require('electron');
 const ref = require('ref-napi');
-const Struct = require('ref-struct-di')(ref);
-const ArrayType = require('ref-array-di')(ref);
-const gegl = require('./gegl.js');
-const LibInput = require('./libinput.js');
-const mypaint = require('./libmypaint.js')
+const gegl = require('./ffi/gegl');
+const LibInput = require('./ffi/libinput');
+const mypaint = require('./ffi/libmypaint')
 
 var gnode;
 var buffer;

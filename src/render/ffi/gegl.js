@@ -3,6 +3,55 @@ const ref = require('ref-napi');
 const ArrayType = require('ref-array-di')(ref);
 const Struct = require('ref-struct-di')(ref);
 
+class Node {
+    constructor(gegl, node_type = null, parent = null, desc = {}) {
+        this.gegl = gegl;
+        let args = [];
+        let types = [];
+        for (i in desc) {
+            let v = desc[i];
+            if (typeof(v) === 'bigint') {
+                types.push('int');
+                args.push(v);
+            } else if (typeof(v) === 'number') {
+                types.push('double');
+                args.push(v);
+            } else if (typeof(v) === 'string') {
+                types.push('string');
+                args.push(v);
+            } else if (typeof(v) === 'function') {
+                types.push('pointer');
+                args.push(v);
+            } else if (typeof(v) === 'boolean') {
+                types.push('bool');
+                args.push(v);
+            } else if (typeof(v) === 'undefined') {
+                types.push('pointer');
+                args.push(null);
+            } else {
+                types.push('pointer');
+                args.push(v);
+            }
+        }
+        if (!parent || !node_type) {
+            this.node = gegl.gegl_node_new();
+        } else {
+            args.push(null);
+            types.push(null);
+            this.node = this.gegl.gegl_node_new_child(...types)(parent, node_type, ...args);
+        }
+        
+    }
+
+    dispose() {
+        this.gegl.g_object_unref(this.node);
+    }
+
+    link(...nodes) {
+        args = [this] + nodes + [null];
+        this.gegl.gegl_node_link_many(...args);
+    }
+};
 class Gegl {
     constructor() {
         this.GeglBuffer = ref.types.void;
@@ -50,6 +99,14 @@ class Gegl {
 
     init() {
         this.gegl_init(null, null);
+    }
+
+    node() {
+        return new Node(this);
+    }
+
+    node(parent, node_type, desc = {}) {
+        return new Node(this, node_type, parent, desc);
     }
 }
 
