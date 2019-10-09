@@ -3,55 +3,110 @@ const ref = require('ref-napi');
 const ArrayType = require('ref-array-di')(ref);
 const Struct = require('ref-struct-di')(ref);
 
+var gegl;
+
+class Pad {
+    constructor(node, label) {
+        this.node = node;
+        this.label = label
+    }
+
+    connect_to(in_pad) {
+        gegl.gegl_node_connect_to(this.node.node, this.label, in_pad.node.node, in_pad.label);
+    }
+};
+
 class Node {
-    constructor(gegl, node_type = null, parent = null, desc = {}) {
-        this.gegl = gegl;
+    constructor(parent = null, desc = {}) {
         let args = [];
         let types = [];
-        for (i in desc) {
+        for (let i in desc) {
             let v = desc[i];
             if (typeof(v) === 'bigint') {
+                types.push('string');
                 types.push('int');
+                args.push(i.toString())
                 args.push(v);
             } else if (typeof(v) === 'number') {
+                types.push('string');
                 types.push('double');
+                args.push(i.toString())
                 args.push(v);
             } else if (typeof(v) === 'string') {
                 types.push('string');
+                types.push('string');
+                args.push(i.toString())
                 args.push(v);
             } else if (typeof(v) === 'function') {
+                types.push('string');
                 types.push('pointer');
+                args.push(i.toString())
                 args.push(v);
             } else if (typeof(v) === 'boolean') {
+                types.push('string');
                 types.push('bool');
+                args.push(i.toString())
                 args.push(v);
             } else if (typeof(v) === 'undefined') {
+                types.push('string');
                 types.push('pointer');
+                args.push(i.toString())
                 args.push(null);
             } else {
+                types.push('string');
                 types.push('pointer');
+                args.push(i.toString())
                 args.push(v);
             }
         }
-        if (!parent || !node_type) {
+        if (!parent || args.length == 0) {
             this.node = gegl.gegl_node_new();
         } else {
             args.push(null);
-            types.push(null);
-            this.node = this.gegl.gegl_node_new_child(...types)(parent, node_type, ...args);
+            types.push('pointer');
+            types.shift();
+            this.node = gegl.gegl_node_new_child(...types)(parent.node, ...args);
         }
-        
+    }
+
+    ref() {
+        return this.node;
     }
 
     dispose() {
-        this.gegl.g_object_unref(this.node);
+        gegl.g_object_unref(this.node);
     }
 
-    link(...nodes) {
-        args = [this] + nodes + [null];
-        this.gegl.gegl_node_link_many(...args);
+    connect_to(...nodes) {
+        let types = nodes.map((i)=> { return 'pointer'});
+        let args = [this.node].concat(nodes.map((i)=>{return i.node}));
+        args.push(null);
+        gegl.gegl_node_link_many(...types)(...args);
+    }
+
+    aux() {
+        return new Pad(this, "aux");
+    }
+
+    output() {
+        return new Pad(this, "output");
+    }
+
+    input() {
+        return new Pad(this, "input");
+    }
+
+    new_processor(x = null, y = null, w = null, h = null) {
+        let rect = null;
+        if (x != null && y != null && w != null && h !=null) {
+            rect = new gegl.GeglRectangle();
+            rect.x = x; rect.y = y;
+            rect.width = w; rect.height = h;
+        }
+        return gegl.gegl_node_new_processor(this.node, rect? rect.ref(): null);
     }
 };
+
 class Gegl {
     constructor() {
         this.GeglBuffer = ref.types.void;
@@ -70,11 +125,11 @@ class Gegl {
         this.PBabl = ref.refType(this.Babl);
         const strings = ArrayType('string');
         // FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
-        Object.assign(this, ffi.Library('/usr/lib/x86_64-linux-gnu/libbabl-0.1.so.0', {
+        Object.assign(this, ffi.Library('libbabl-0.1.so.0', {
             'babl_init': [this.PBabl, ['string']],
             'babl_format': [this.PBabl, ['string']]
         }));
-        Object.assign(this, ffi.Library('/usr/lib/libgegl-0.3.so', {
+        Object.assign(this, ffi.Library('libgegl-0.3.so', {
             'gegl_init': ["void", ['int *', strings]],
             'gegl_node_new': [this.PGeglNode, []],
             'gegl_node_new_child':[this.PGeglNode,[this.PGeglNode, 'string'], {varargs: true}],
@@ -102,14 +157,14 @@ class Gegl {
     }
 
     node() {
-        return new Node(this);
+        return new Node();
     }
 
-    node(parent, node_type, desc = {}) {
-        return new Node(this, node_type, parent, desc);
+    node(parent, desc = {}) {
+        return new Node(parent, desc);
     }
 }
 
-var gegl = new Gegl();
+gegl = new Gegl();
 gegl.init();
 module.exports = gegl;

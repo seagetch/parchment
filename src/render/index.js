@@ -3,12 +3,33 @@ const electron = require('electron');
 const ref = require('ref-napi');
 const gegl = require('./ffi/gegl');
 const LibInput = require('./ffi/libinput');
-const mypaint = require('./ffi/libmypaint')
+const mypaint = require('./ffi/libmypaint');
+const RasterImage = require('./rasterlib/image');
+const RasterLayer = require('./rasterlib/layer')
 
-var gnode;
-var buffer;
-var top_node;
-var out_node;
+var image;
+
+function run_rasterlib() {
+    let canvas = $('#canvas')[0]
+    image = new RasterImage(canvas.width, canvas.height);
+    let base_layer = new RasterLayer(0, 0, canvas.width, canvas.height);
+    image.add_layer(base_layer);
+    base_layer.lock(gegl.babl_format("Y' u8"), null, (buffer, stride) => {
+        var buf2 = ref.reinterpret(buffer, canvas.width*canvas.height, 0);
+        buf2.type = ref.types.uint8;
+        buf2.fill(255);
+    });
+    let layer = new RasterLayer(0, 0, canvas.width, canvas.height);
+    layer.lock(gegl.babl_format("R'G'B'A u8"), null, (buffer, stride) => {
+        var buf2 = ref.reinterpret(buffer, canvas.width*canvas.height, 0);
+        buf2.type = ref.types.uint8;
+        buf2.fill(0);
+    });
+    image.add_layer(layer);
+    image.select_layer(1);
+
+    blit($("#canvas")[0], true);
+}
 
 var dirty = false;
 var move_count = 0;
@@ -22,27 +43,30 @@ function blit(canvas, direct = false, drect=null) {
 //            console.log("rect="+drect.x+","+drect.y+"-"+drect.width+","+drect.height)
 //        if (dirty) {
             let ctx = canvas.getContext("2d");
-            let imageData = (!drect)? ctx.getImageData(0, 0, canvas.width, canvas.height): ctx.getImageData(drect.x, drect.y, drect.width, drect.height);
-            let destBuf = Buffer.from(imageData.data.buffer);
-            let stride = ref.alloc("int")
+//            let imageData = (!drect)? ctx.getImageData(0, 0, canvas.width, canvas.height): ctx.getImageData(drect.x, drect.y, drect.width, drect.height);
+//            let destBuf = Buffer.from(imageData.data.buffer);
+//            let destBuf = Buffer.from(imageData.data.buffer);
             let rect = new gegl.GeglRectangle();
             if (!drect) {
                 rect.x = 0; rect.y = 0; rect.width = canvas.width; rect.height = canvas.height;
             } else {
                 rect.x = drect.x; rect.y = drect.y; rect.width = drect.width; rect.height = drect.height;
             }
-            var buf  = gegl.gegl_buffer_linear_open(buffer, rect.ref(), stride, gegl.babl_format("R'G'B'A u8"));
-            let st = stride.deref();
-            var buf2 = ref.reinterpret(buf, st * rect.height * 4, 0);
-            if (st == rect.width * 4) {
-                buf2.copy(destBuf, 0, 0, rect.width * rect.height * 4);
-            } else {
-                for (let y = 0; y < rect.height; y ++)
-                    buf2.copy(destBuf, rect.width * y * 4, st * y, st * (y + 1));
-            }
-            gegl.gegl_buffer_linear_close(buffer, buf);
-
-            ctx.putImageData(imageData, rect.x, rect.y);
+            image.update(rect.x, rect.y, rect.width, rect.height);
+            image.lock(gegl.babl_format("R'G'B'A u8"), rect, (buffer, stride) => {
+                var buf2 = ref.reinterpret(buffer, stride * rect.height, 0);
+                let imageData = null;
+                if (stride == rect.width * 4) {
+//                    buf2.copy(destBuf, 0, 0, rect.width * rect.height * 4);
+                    imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect.width * rect.height * 4), rect.width, rect.height);
+                } else {
+                    let data = new Uint8ClampedArray(rect.width * rect.height * 4);
+                    for (let y = 0; y < rect.height; y ++)
+                        buf2.copy(data, rect.width * y * 4, stride * y, st * (y + 1));
+                    imageData = new ImageData(data, rect.width, rect.height);
+                }
+                ctx.putImageData(imageData, rect.x, rect.y);
+            });
             dirty = false;
 //        }
         queued = null;
@@ -66,21 +90,7 @@ function run_gegl() {
     rect.width = $("#canvas")[0].width
     rect.height = $("#canvas")[0].height
     console.log("Create canvas of size "+rect.width + ","+rect.height)
-    buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'aG'aB'aA u15"));
-    var buf  = gegl.gegl_buffer_linear_open(buffer, rect.ref(), null, gegl.babl_format("Y' u8"));
-    var buf2 = ref.reinterpret(buf, canvas.width*canvas.height, 0);
-    buf2.type = ref.types.uint8;
-    buf2.fill(255);
-    gegl.gegl_buffer_linear_close(buffer, buf);
 
-    gnode = gegl.gegl_node_new();
-    top_node = gegl.gegl_node_new_child('string', 'string', 'pointer', 'pointer')(gnode, "operation", "gegl:buffer-source", "buffer", buffer, null);
-    out_node  = gegl.gegl_node_new_child('string', 'pointer')(gnode, "operation", "gegl:nop", null);
-    gegl.gegl_node_link_many('pointer')(top_node, out_node, null);
-
-    blit($("#canvas")[0], true)
-    //g_object_unref(gnode);
-    //g_object_unref(buffer);
 }
 
 var brush;
@@ -91,7 +101,7 @@ function run_mypaint() {
     brush = mypaint.mypaint_brush_new();
     mypaint.mypaint_brush_from_defaults(brush);
     gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
-    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, buffer);
+    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
     surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
 }
 
@@ -127,7 +137,7 @@ function tablet_motion(ev, tablet) {
         if (vector) {
             console.log("release")
             mypaint.mypaint_brush_reset(brush);
-            blit(canvas,true);
+            blit(canvas,false);
         }
         vector = false;
     }
@@ -142,6 +152,7 @@ function run_libinput(screen_size) {
 
 $(window).on("load", () =>{
     run_gegl();
+    run_rasterlib();
     run_mypaint();
     ipcRenderer.send("start");
 })
