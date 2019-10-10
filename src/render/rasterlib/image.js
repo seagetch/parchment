@@ -12,11 +12,30 @@ class RasterImage {
         rect.height = height;
         this.width  = width;
         this.height = height;
-        this.buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'aG'aB'aA u15"));
+        this.buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'G'B'A u8"));
+    }
+    dispose() {
+        for (let i = 0; i < this.layers.length; i ++)
+            this.layers[i].dispose();
+        this.layers.length = 0;
+        gegl.g_object_unref(this.buffer);
+        if (this.gnode)
+            this.gnode.dispose();
+        if (this.last_node)
+            this.last_node.dispose();
+        this.gnode = null;
+        this.last_node = null;
+    }
+    validate() {
+        if (this.last_node) {
+            this.last_node.dispose();
+            this.last_node = null;
+        }
     }
     add_layer(layer) {
         this.layers.push(layer)
         layer.parent = this;
+        this.validate();
     }
     remove_layer(layer) {
         var i = this.layers.indexOf(layer);
@@ -24,24 +43,30 @@ class RasterImage {
             this.layers.splice(i, 1);
             layer.parent = null;
         }
+        this.validate();
     }
-    update(x, y, width, height) {
-        let gnode = gegl.node();
+    update_op() {
+        if (this.gnode)
+            this.gnode.dispose();
+
+        this.gnode = gegl.node();
         let node = null;
         for (let i = 0; i < this.layers.length; i ++) {
-            node = this.layers[i].update_op(gnode, node);
+            node = this.layers[i].update_op(this.gnode, node);
         }
-        let last_node = gegl.node(gnode, {operation: "gegl:write-buffer", buffer: this.buffer});
-        node.connect_to(last_node)
+        this.last_node = gegl.node(this.gnode, {operation: "gegl:write-buffer", buffer: this.buffer});
+        node.connect_to(this.last_node);
+    }
+    update(x, y, width, height) {
+        if (!this.last_node)
+            this.update_op();
         let rect = new gegl.GeglRectangle();
         rect.x = x
         rect.y = y
         rect.width = width;
         rect.height = height;
-        let processor = last_node.new_processor(x, y, width, height);
+        let processor = this.last_node.new_processor(x, y, width, height);
         while (gegl.gegl_processor_work(processor, null)) {};
-
-        gnode.dispose();
     }
     update_all() {
         this.update(0, 0, this.width, this.height);

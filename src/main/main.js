@@ -13,10 +13,12 @@ app.on("ready", ()=>{
     });
 
     console.dir(current_screen.bounds)
+    let w = 1200;
+    let h = 1024;
     var window = new BrowserWindow({
-        width: 800, height: 600,
-        x: current_screen.bounds.x + (current_screen.bounds.width  - 800) / 2,
-        y: current_screen.bounds.y + (current_screen.bounds.height - 600) / 2,
+        width: w, height: h,
+        x: current_screen.bounds.x + (current_screen.bounds.width  - w) / 2,
+        y: current_screen.bounds.y + (current_screen.bounds.height - h) / 2,
         webPreferences: {
             nodeIntegration: true
         }

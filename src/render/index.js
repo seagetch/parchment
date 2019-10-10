@@ -51,21 +51,49 @@ function blit(canvas, direct = false, drect=null) {
                 rect.x = 0; rect.y = 0; rect.width = canvas.width; rect.height = canvas.height;
             } else {
                 rect.x = drect.x; rect.y = drect.y; rect.width = drect.width; rect.height = drect.height;
+                if (rect.x < 0) {
+                    rect.width += rect.x;
+                    rect.x = 0;
+                }
+                if (rect.y < 0) {
+                    rect.height += rect.y;
+                    rect.y = 0;
+                }
+                if (rect.x + rect.width > canvas.width) {
+                    rect.width = canvas.width - rect.x;
+                }
+                if (rect.y + rect.height > canvas.height) {
+                    rect.height = canvas.height - rect.y;
+                }
+                if (rect.width <= 0 || rect.height <= 0)
+                    return;
             }
+            if (rect.width == canvas.width && rect.height == canvas.height)
+                console.log("update");
             image.update(rect.x, rect.y, rect.width, rect.height);
+            if (rect.width == canvas.width && rect.height == canvas.height)
+                console.log("locking");
             image.lock(gegl.babl_format("R'G'B'A u8"), rect, (buffer, stride) => {
                 var buf2 = ref.reinterpret(buffer, stride * rect.height, 0);
                 let imageData = null;
                 if (stride == rect.width * 4) {
-//                    buf2.copy(destBuf, 0, 0, rect.width * rect.height * 4);
+                    if (rect.width == canvas.width && rect.height == canvas.height)
+                       console.log("set image");
+    //                    buf2.copy(destBuf, 0, 0, rect.width * rect.height * 4);
                     imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect.width * rect.height * 4), rect.width, rect.height);
                 } else {
+                    if (rect.width == canvas.width && rect.height == canvas.height)
+                       console.log("copy image");
                     let data = new Uint8ClampedArray(rect.width * rect.height * 4);
                     for (let y = 0; y < rect.height; y ++)
                         buf2.copy(data, rect.width * y * 4, stride * y, st * (y + 1));
                     imageData = new ImageData(data, rect.width, rect.height);
                 }
+                if (rect.width == canvas.width && rect.height == canvas.height)
+                    console.log("put image");
                 ctx.putImageData(imageData, rect.x, rect.y);
+                if (rect.width == canvas.width && rect.height == canvas.height)
+                    console.log("done");
             });
             dirty = false;
 //        }
