@@ -9,19 +9,18 @@ const RasterLayer = require('./rasterlib/layer')
 
 var image;
 
-function run_rasterlib() {
-    let canvas = $('#canvas')[0]
-    image = new RasterImage(canvas.width, canvas.height);
-    let base_layer = new RasterLayer(0, 0, canvas.width, canvas.height);
+function run_rasterlib(bounds) {
+    image = new RasterImage(bounds.width, bounds.height);
+    let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
     image.add_layer(base_layer);
     base_layer.lock(gegl.babl_format("Y' u8"), null, (buffer, stride) => {
-        var buf2 = ref.reinterpret(buffer, canvas.width*canvas.height, 0);
+        var buf2 = ref.reinterpret(buffer, bounds.width*bounds.height, 0);
         buf2.type = ref.types.uint8;
         buf2.fill(255);
     });
-    let layer = new RasterLayer(0, 0, canvas.width, canvas.height);
+    let layer = new RasterLayer(0, 0, bounds.width, bounds.height);
     layer.lock(gegl.babl_format("R'G'B'A u8"), null, (buffer, stride) => {
-        var buf2 = ref.reinterpret(buffer, canvas.width*canvas.height, 0);
+        var buf2 = ref.reinterpret(buffer, bounds.width*bounds.height, 0);
         buf2.type = ref.types.uint8;
         buf2.fill(0);
     });
@@ -137,6 +136,7 @@ var vector = null;
 var over_node, stroke;
 var rendering = false;
 var last_event = {x: 0, y: 0, time: 0}
+var min_x = null, min_y = null, max_x = null, max_y = null;
 function tablet_motion(ev, tablet) {
     let canvas = $("#canvas")[0];
     let client = canvas.getBoundingClientRect();
@@ -148,8 +148,13 @@ function tablet_motion(ev, tablet) {
             console.log("press")
             mypaint.mypaint_brush_new_stroke(brush);
             dirty = true;
+            min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
         } else {
             console.log("motion")
+            if (offset_x < min_x) min_x = offset_x;
+            if (offset_y < min_y) min_y = offset_y;
+            if (max_x < offset_x) max_x = offset_x;
+            if (max_y < offset_y) max_y = offset_y;
             let dtime = (tablet.time - last_event.time)/1000.0;
             let rect = new mypaint.MyPaintRectangle();
             mypaint.mypaint_surface_begin_atomic(surface);
@@ -165,7 +170,12 @@ function tablet_motion(ev, tablet) {
         if (vector) {
             console.log("release")
             mypaint.mypaint_brush_reset(brush);
-            blit(canvas,false);
+            let bounds = new mypaint.MyPaintRectangle();
+            bounds.x = min_x;
+            bounds.y = min_y;
+            bounds.width = max_x - min_x;
+            bounds.height = max_y - min_y;
+            blit(canvas,false, bounds);
         }
         vector = false;
     }
@@ -178,13 +188,24 @@ function run_libinput(screen_size) {
     libinput.watch(tablet_motion);
 }
 
+function resize_canvas() {
+    let canvas = $("#canvas")[0];
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    if (image)
+        blit(canvas, true, null);
+}
+
 $(window).on("load", () =>{
+    resize_canvas();
     run_gegl();
-    run_rasterlib();
-    run_mypaint();
     ipcRenderer.send("start");
 })
 
+$(window).on("resize", resize_canvas);
+
 ipcRenderer.on("screen-size", (event, bounds) => {
+    run_rasterlib(bounds);
+    run_mypaint();
     run_libinput(bounds);
 })

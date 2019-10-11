@@ -13,6 +13,7 @@ class RasterLayer {
         rect.width  = width;
         rect.height = height;
         this.buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'aG'aB'aA u15"));
+        this.compositor = "gegl:over";
     }
     dispose() {
         gegl.g_object_unref(this.buffer);
@@ -20,6 +21,11 @@ class RasterLayer {
     }
     resize(width, height) {
 
+    }
+    set_compositor(comp) {
+        this.compositor = comp;
+        if (this.parent)
+            this.parent.validate();
     }
 
     lock(format, rect, callback) {
@@ -37,7 +43,7 @@ class RasterLayer {
         if (!base_node) {
             return gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
         } else {
-            let new_node = gegl.node(top_node, { operation: "gegl:over" });
+            let new_node = gegl.node(top_node, { operation: this.compositor });
             base_node.connect_to(new_node);
             let aux_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
             aux_node.output().connect_to(new_node.aux());
