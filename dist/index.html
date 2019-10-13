@@ -1,0 +1,20 @@
+<head>
+    <title>libinput test</title>
+</head>
+<body style="background-color: rgb(80,80,80); user-select: none;">
+    <link rel="stylesheet" href="style.css">
+    <script>window.$ = window.jQuery = require('jquery');</script>
+    <script src="./index.js"></script>
+    <div class="container-fluid" style="z-index: 10; position: absolute;">
+        <div class="row">
+            <nav class="nav flex-column bg-primary rounded col-1" id="tool-box">
+                <a class="nav-link active">Home</a>
+                <a class="nav-link">Test</a>
+            </nav>
+            <div class="col-3 offset-8 border border-primary rounded p-2" id="brush-palette">
+                Palette
+            </div>
+        </div>
+    </div>
+    <canvas id="canvas" ></canvas>
+</body>

@@ -1,5 +1,6 @@
 const gegl = require("../ffi/gegl");
-const Layer = require('./layer')
+const Layer = require('./layer');
+const ref = require('ref-napi');
 
 class RasterImage {
     constructor(width, height) {

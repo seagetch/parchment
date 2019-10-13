@@ -1,25 +1,55 @@
 {
-  "name": "libinput",
+  "name": "parchment",
   "version": "1.0.0",
-  "description": "",
-  "main": "./src/main/main.js",
+  "description": "My webpack project",
+  "main": "./dist/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron "
+    "start": "electron",
+    "build": "webpack",
+    "watch": "webpack -w"
   },
   "dependencies": {
     "electron": "^6.0.11",
     "electron-rebuild": "^1.8.6",
     "epoll": "^3.0.0",
     "ffi-napi": "github:node-ffi-napi/node-ffi-napi",
+    "fs": "0.0.1-security",
+    "glob": "^7.1.4",
     "jquery": "^3.4.1",
     "node-gyp": "^5.0.4",
+    "path": "^0.12.7",
+    "popper.js": "^1.15.0",
     "ref-array-di": "^1.2.1",
     "ref-array-napi": "^1.2.0",
     "ref-struct-di": "^1.1.0",
     "ref-struct-napi": "^1.1.0"
   },
-  "devDependencies": {},
-  "author": "",
-  "license": "ISC"
+  "devDependencies": {
+    "@babel/core": "^7.6.4",
+    "@babel/preset-env": "^7.6.3",
+    "autoprefixer": "^9.6.4",
+    "babel-loader": "^8.0.6",
+    "babel-plugin-syntax-dynamic-import": "^6.18.0",
+    "bootstrap": "^4.3.1",
+    "bootstrap-select": "^1.13.12",
+    "bootstrap-slider": "^10.6.2",
+    "bootstrap-switch": "^3.4.0",
+    "css-loader": "^3.2.0",
+    "html-webpack-plugin": "^3.2.0",
+    "node-sass": "^4.12.0",
+    "postcss-loader": "^3.0.0",
+    "precss": "^4.0.0",
+    "resolve-url-loader": "^3.1.0",
+    "sass-loader": "^8.0.0",
+    "style-loader": "^1.0.0",
+    "ts-loader": "^6.2.0",
+    "url-loader": "^2.2.0",
+    "webpack": "^4.41.1",
+    "webpack-build": "^1.0.1",
+    "webpack-cli": "^3.3.9",
+    "webpack-node-externals": "^1.7.2"
+  },
+  "author": "seagetch",
+  "license": "Apache2.0"
 }

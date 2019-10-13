@@ -23,7 +23,7 @@ app.on("ready", ()=>{
             nodeIntegration: true
         }
     });
-    window.loadFile("./src/render/index.html")
+    window.loadFile("./dist/index.html")
     window.on('closed', () => {
         current_channel = null;
         win = null;

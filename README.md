@@ -1,2 +1,15 @@
-# parchment
-Electron-based painting software. (Currently testing technical feasibility to use electron as a base of graphics editing software.)
+# 🚀 Welcome to your new awesome project!
+
+This project has been created using **webpack scaffold**, you can now run
+
+```
+npm run build
+```
+
+or
+
+```
+yarn build
+```
+
+to bundle your application
