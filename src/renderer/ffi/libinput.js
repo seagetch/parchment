@@ -4,6 +4,8 @@ const ref = require('ref-napi');
 const Struct = require('ref-struct-di')(ref);
 const epoll = require('epoll').Epoll;
 
+var lib_config = null;
+
 class LibInput {
     constructor(paths) {
         this.LIBINPUT_EVENT_TABLET_TOOL_AXIS = 600;
@@ -21,7 +23,7 @@ class LibInput {
         this.libinput_event = ref.types.void;
         this.Plibinput_event = ref.refType(this.libinput_event);
 
-        Object.assign(this, ffi.Library('/usr/lib/x86_64-linux-gnu/libinput.so.10', {
+        Object.assign(this, ffi.Library(lib_config['libinput'], {
             'libinput_path_create_context': [ this.Plibinput_t, [ this.Plibinput_interface, 'pointer' ] ],
             'libinput_path_add_device': [ 'pointer', [ this.Plibinput_t, 'string' ] ],
             'libinput_path_remove_device': ['void', ['pointer']],
@@ -108,5 +110,9 @@ class LibInput {
     }
 };
 
+function init(_lib_config) {
+    lib_config = _lib_config;
+    return LibInput;
+}
 // FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
-module.exports = LibInput;
+module.exports = init;

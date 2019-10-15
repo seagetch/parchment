@@ -1,12 +1,16 @@
 const { ipcRenderer } = require('electron')
 const electron = require('electron');
 const ref = require('ref-napi');
-const gegl = require('./ffi/gegl');
-const LibInput = require('./ffi/libinput');
-const mypaint = require('./ffi/libmypaint');
-const RasterImage = require('./rasterlib/image');
-const RasterLayer = require('./rasterlib/layer');
-const brush_loader = require('./resources/brushset');
+const fs = require('fs');
+
+const lib_config = JSON.parse(fs.readFileSync('./config/libraries.json', 'utf8'));
+
+const gegl = require('./ffi/gegl')(lib_config);
+const LibInput = require('./ffi/libinput')(lib_config);
+const mypaint = require('./ffi/libmypaint')(lib_config, gegl);
+const RasterImage = require('./rasterlib/image')(gegl);
+const RasterLayer = require('./rasterlib/layer')(gegl);
+const brush_loader = require('./resources/brushset')(mypaint);
 const path = require('path');
 const process = require("process");
 

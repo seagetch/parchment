@@ -1,5 +1,6 @@
-const gegl = require("../ffi/gegl");
 const ref  = require("ref-napi");
+var gegl;
+
 class RasterLayer {
     constructor(x, y, width, height) {
         var rect = new gegl.GeglRectangle();
@@ -51,4 +52,9 @@ class RasterLayer {
         }
     }
 };
-module.exports = RasterLayer;
+
+function init(_gegl) {
+    gegl = _gegl;
+    return RasterLayer;
+}
+module.exports = init;

@@ -1,6 +1,8 @@
-const gegl = require("../ffi/gegl");
-const Layer = require('./layer');
+const Layer_Generator = require('./layer');
 const ref = require('ref-napi');
+
+var gegl;
+var Layer;
 
 class RasterImage {
     constructor(width, height) {
@@ -86,4 +88,9 @@ class RasterImage {
     }
 };
 
-module.exports = RasterImage;
+function init(_gegl) {
+    gegl = _gegl;
+    Layer = Layer_Generator(gegl);
+    return RasterImage;
+}
+module.exports = init;

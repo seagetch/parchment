@@ -1,10 +1,10 @@
 const ffi = require('ffi-napi');
 const ref = require('ref-napi');
 const Struct = require('ref-struct-di')(ref);
-const gegl = require('./gegl');
 
+var gegl;
 class LibMyPaint {
-    constructor() {
+    constructor(lib_config) {
         this.MyPaintBrush = ref.types.void;
         this.PMyPaintBrush = ref.refType(this.MyPaintBrush);
 
@@ -28,7 +28,7 @@ class LibMyPaint {
         });
         this.PMyPaintSurface = ref.refType(this.MyPaintSurface);
 
-        Object.assign(this, ffi.Library('/usr/local/lib/libmypaint.so', {
+        Object.assign(this, ffi.Library(lib_config['libmypaint'], {
             'mypaint_brush_new': [this.PMyPaintBrush, []],
             'mypaint_brush_unref': ['void', [this.PMyPaintBrush]],
             'mypaint_brush_ref': ['void', [this.PMyPaintBrush]],
@@ -63,7 +63,7 @@ class LibMyPaint {
             'mypaint_surface_ref': ['void', [this.PMyPaintSurface]],
             'mypaint_surface_unref': ['void', [this.PMyPaintSurface]],
         }));
-        Object.assign(this, ffi.Library('/usr/local/lib/libmypaint-gegl.so', {
+        Object.assign(this, ffi.Library(lib_config['libmypaint-gegl'], {
             'mypaint_gegl_tiled_surface_get_buffer': [gegl.PGeglBuffer, [this.PMyPaintGeglTiledSurface]],
             'mypaint_gegl_tiled_surface_set_buffer': ['void', [this.PMyPaintGeglTiledSurface, gegl.PGeglBuffer]],
             'mypaint_gegl_tiled_surface_interface': [this.PMyPaintSurface, [this.PMyPaintGeglTiledSurface]],
@@ -72,5 +72,12 @@ class LibMyPaint {
     }
 }
 
-libmypaint = new LibMyPaint();
-module.exports = libmypaint;
+var libmypaint = null;
+function init(lib_config, _gegl) {
+    if (libmypaint)
+        return libmypaint;
+    gegl = _gegl;
+    libmypaint = new LibMyPaint(lib_config);
+    return libmypaint;
+}
+module.exports = init;

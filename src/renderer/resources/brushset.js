@@ -1,7 +1,8 @@
-const mypaint = require('../ffi/libmypaint');
 const path = require('path');
 const glob = require('glob');
 const fs = require('fs');
+
+var mypaint;
 
 class Brush {
     constructor(filepath) {
@@ -29,4 +30,9 @@ function read_brushes(base_path) {
     return result;
 }
 
-module.exports = read_brushes;
+function init(_libmypaint) {
+    mypaint = _libmypaint;
+    return read_brushes;
+}
+
+module.exports = init;

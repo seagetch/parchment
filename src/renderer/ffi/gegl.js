@@ -108,7 +108,7 @@ class Node {
 };
 
 class Gegl {
-    constructor() {
+    constructor(lib_config) {
         this.GeglBuffer = ref.types.void;
         this.PGeglBuffer = ref.refType(this.GeglBuffer);
         this.GeglNode = ref.types.void;
@@ -125,11 +125,11 @@ class Gegl {
         this.PBabl = ref.refType(this.Babl);
         const strings = ArrayType('string');
         // FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
-        Object.assign(this, ffi.Library('libbabl-0.1.so.0', {
+        Object.assign(this, ffi.Library(lib_config['libbabl'], {
             'babl_init': [this.PBabl, ['string']],
             'babl_format': [this.PBabl, ['string']]
         }));
-        Object.assign(this, ffi.Library('libgegl-0.3.so', {
+        Object.assign(this, ffi.Library(lib_config['libgegl'], {
             'gegl_init': ["void", ['int *', strings]],
             'gegl_node_new': [this.PGeglNode, []],
             'gegl_node_new_child':[this.PGeglNode,[this.PGeglNode, 'string'], {varargs: true}],
@@ -146,7 +146,7 @@ class Gegl {
             'gegl_color_new': ['pointer', ['string']],
             'gegl_node_process': ['void', [this.PGeglNode]]
         }));
-        Object.assign(this, ffi.Library('/usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0', {
+        Object.assign(this, ffi.Library(lib_config['libgobject'], {
             'g_object_unref': ['void',['pointer']],
         //    'g_signal_connect': [,['pointer']],
         }));
@@ -165,6 +165,12 @@ class Gegl {
     }
 }
 
-gegl = new Gegl();
-gegl.init();
-module.exports = gegl;
+var gegl = null;
+function init(lib_config) {
+    if (gegl)
+        return gegl;
+    gegl = new Gegl(lib_config);
+    gegl.init();
+    return gegl;
+}
+module.exports = init;
