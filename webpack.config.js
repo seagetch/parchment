@@ -43,7 +43,13 @@ module.exports = [
         extensions: ['.js', '.ts']
     },
     externals: [nodeExternals({
-        whitelist: ["bootstrap/dist/css/bootstrap.min.css", "bootstrap"]      
+        whitelist: [
+            "bootstrap/dist/css/bootstrap.min.css", 
+            "bootstrap", 
+            "@fortawesome/fontawesome-free/js/fontawesome", 
+            "@fortawesome/fontawesome-free/js/regular", 
+            "@fortawesome/fontawesome-free/js/solid"
+            ]      
     })]
 }
 ];
