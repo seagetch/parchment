@@ -1,15 +1,47 @@
-# 🚀 Welcome to your new awesome project!
+# Parchment
+
+Electron-based painting software. (Currently testing technical feasibility to use electron as a base of graphics editing software.)
+
+## Prerequisites
+
+- Babl >= 0.1.44
+- Gegl >= 0.3 (0.3 is recommended to work smoothly with libmypaint 1.3.0)
+- libmypaint >= 1.3
+- libinput (tested on 1.10.4)
+   Read / write access must be permitted to /dev/input/event<N> (devices for tablet).
+   (Configure udev setting.)
 
 This project has been created using **webpack scaffold**, you can now run
 
+## Install
+Run following commands on terminal.
 ```
+git clone https://github.com/seagetch/parchment.git
+cd parchment
+npm install
+./node_modules/.bin/electron-rebuild
 npm run build
 ```
 
-or
-
+## Post Install
+1. Updating library location file.
+Configure `config/libraries.json`. Open file, and update the location for libraries listed at prerequisites section.
+Below is the examples of tested environment.
 ```
-yarn build
+{
+    "libbabl": "/usr/local/lib/x86_64-linux-gnu/libbabl-0.1.so",
+    "libgegl": "/usr/local/lib/x86_64-linux-gnu/libgegl-0.4.so",
+    "libgobject": "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0",
+    "libmypaint": "/usr/local/lib/libmypaint-1.4.so.0",
+    "libmypaint-gegl": "/usr/local/lib/libmypaint-gegl-1.4.so",
+    "libinput": "/usr/lib/x86_64-linux-gnu/libinput.so.10"
+}
+
+2. Updating target tablet devices to open
+Currently hardcoded. Wait a while until application automatically detect device file.
 ```
 
-to bundle your application
+## Run
+```
+npm start .
+```
