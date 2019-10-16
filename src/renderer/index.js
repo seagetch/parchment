@@ -46,6 +46,43 @@ function run_rasterlib(bounds) {
 
 var move_count = 0;
 
+class StopWatch {
+    constructor(sections) {
+        this.counts = new Array(sections);
+        this.start = new Array(sections);
+        this.total = new Array(sections);
+        this.id = 0;
+    }
+
+    start_watch(id) {
+        this.id = id;
+        this.start[this.id] = process.hrtime.bigint();
+    }
+    lap(id) {
+        let time = process.hrtime.bigint();
+        this.total[id] += time - this.start[this.id];
+        this.counts[id]++;
+        this.start[id] = time
+        this.id = id;
+    }
+    stop(id) {
+        this.lap(id);
+    }
+    show() {
+        for (let c = 0; c <= this.id; c++) {
+            console.log(c+":"+ this.counts[c]+"/ avg "+(this.counts[c]? parseFloat(this.total[c]) / 1000.0 / 1000.0 / this.counts[c]: 0).toFixed(2)+"msec")
+        }
+    }
+    clear() {
+        for (let c = 0; c < this.counts.length; c++) {
+            this.counts[c] = 0;
+            this.start[c] = BigInt(0);
+            this.total[c] = BigInt(0);
+        }
+    }
+}
+var watch = new StopWatch(10);
+watch.clear();
 function blit(canvas, direct = false, drect=null) {
     let do_blit = () => {
         if (drect && (direct.width == 0 || drect.height == 0))
@@ -73,32 +110,32 @@ function blit(canvas, direct = false, drect=null) {
             if (rect.width <= 0 || rect.height <= 0)
                 return;
         }
-        if (rect.width == canvas.width && rect.height == canvas.height)
-            console.log("update");
-        image.update(rect.x, rect.y, rect.width, rect.height);
-        if (rect.width == canvas.width && rect.height == canvas.height)
-            console.log("locking");
-        image.lock(gegl.babl_format("R'G'B'A u8"), rect, (buffer, stride) => {
-            var buf2 = ref.reinterpret(buffer, stride * rect.height, 0);
-            let imageData = null;
-            if (stride == rect.width * 4) {
-                if (rect.width == canvas.width && rect.height == canvas.height)
-                    console.log("set image");
-//                    buf2.copy(destBuf, 0, 0, rect.width * rect.height * 4);
-                imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect.width * rect.height * 4), rect.width, rect.height);
-            } else {
-                if (rect.width == canvas.width && rect.height == canvas.height)
-                    console.log("copy image");
-                let data = new Uint8ClampedArray(rect.width * rect.height * 4);
-                for (let y = 0; y < rect.height; y ++)
-                    buf2.copy(data, rect.width * y * 4, stride * y, st * (y + 1));
-                imageData = new ImageData(data, rect.width, rect.height);
-            }
-            if (rect.width == canvas.width && rect.height == canvas.height)
-                console.log("put image");
-            ctx.putImageData(imageData, rect.x, rect.y);
-            if (rect.width == canvas.width && rect.height == canvas.height)
-                console.log("done");
+        watch.start_watch(0);
+        image.update_async(rect.x, rect.y, rect.width, rect.height, (x, y, w, h) => {
+            console.log("async_done")
+            watch.lap(1);
+            let rect2 = new gegl.GeglRectangle();
+            rect2.x = x;
+            rect2.y = y;
+            rect2.width = w;
+            rect2.height = h;
+            image.lock(gegl.babl_format("R'G'B'A u8"), rect2, (buffer, stride) => {
+                watch.lap(2);
+                var buf2 = ref.reinterpret(buffer, stride * rect2.height, 0);
+                let imageData = null;
+                if (stride == rect2.width * 4) {
+                    imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect2.width * rect2.height * 4), rect2.width, rect2.height);
+                    watch.lap(3);
+                } else {
+                    let data = new Uint8ClampedArray(rect2.width * rect2.height * 4);
+                    for (let y = 0; y < rect2.height; y ++)
+                        buf2.copy(data, rect2.width * y * 4, stride * y, st * (y + 1));
+                    imageData = new ImageData(data, rect2.width, rect2.height);
+                    watch.lap(4);
+                }
+                ctx.putImageData(imageData, rect2.x, rect2.y);
+                watch.stop(5);
+            });
         });
     };
     if (direct || move_count % 1000 == 0) {
@@ -146,6 +183,7 @@ function tablet_motion(ev, tablet) {
             console.log("press")
             mypaint.mypaint_brush_new_stroke(brush);
             min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
+            watch.clear();
         } else {
             console.log("motion")
             if (offset_x < min_x) min_x = offset_x;
@@ -153,11 +191,13 @@ function tablet_motion(ev, tablet) {
             if (max_x < offset_x) max_x = offset_x;
             if (max_y < offset_y) max_y = offset_y;
             let dtime = (tablet.time - last_event.time)/1000.0;
+            watch.start_watch(0);
             let rect = new mypaint.MyPaintRectangle();
             mypaint.mypaint_surface_begin_atomic(surface);
             mypaint.mypaint_brush_stroke_to(brush, surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
             mypaint.mypaint_surface_end_atomic(surface, rect.ref());
             last_event = tablet;
+            watch.lap(0);
             blit(canvas, false, rect);
     
             // motion event
@@ -166,12 +206,15 @@ function tablet_motion(ev, tablet) {
         if (vector) {
             console.log("release")
             mypaint.mypaint_brush_reset(brush);
+            watch.show();
+            watch.clear();
             let bounds = new mypaint.MyPaintRectangle();
             bounds.x = min_x;
             bounds.y = min_y;
             bounds.width = max_x - min_x;
             bounds.height = max_y - min_y;
-            blit(canvas,false, bounds);
+            blit(canvas,true, bounds);
+            watch.show();
         }
         vector = false;
     }
