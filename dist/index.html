@@ -1,20 +1,22 @@
 <head>
-    <title>libinput test</title>
+    <title>Parchment</title>
 </head>
 <body style="background-color: rgb(80,80,80); user-select: none;">
     <link rel="stylesheet" href="style.css">
     <script>window.$ = window.jQuery = require('jquery');</script>
     <script src="./index.js"></script>
-    <div class="container-fluid" style="z-index: 10; position: absolute;">
-        <div class="row">
-            <nav class="nav flex-column bg-primary rounded col-1" id="tool-box">
-                <i class="fas fa-paint-brush fa-2x"></i><a class="nav-link">Brush</a>
-                <i class="fas fa-paint-brush fa-2x"></i><a class="nav-link">Brush</a>
-            </nav>
-            <div class="col-1 offset-10 border border-primary rounded p-2" id="brush-palette">
-                Palette
-            </div>
-        </div>
+    <div class="container-fluid" style="position: absolute; width: 100%; height: 100vh; z-index: 10">
+    <ul class="nav justify-content-center bg-primary rounded-bottom" id="tool-box">
+        <li class="nav-item">
+                <a class="nav-link"><i class="fas fa-paint-brush fa-1x"></i>Brush</a>
+        </li>
+        <li class="nav-item">
+                <a class="nav-link"><i class="fas fa-undo fa-1x"></i>Undo</a>
+        </li>
+    </ul>
+    <div class="border bg-white border-primary rounded-left p-2 float-right" style="width: 96px" id="brush-palette">
+        Palette
+    </div>
     </div>
     <canvas id="canvas" ></canvas>
 </body>
