@@ -105,6 +105,10 @@ class Node {
         }
         return gegl.gegl_node_new_processor(this.node, rect? rect.ref(): null);
     }
+
+    process() {
+        gegl.gegl_node_process(this.node);
+    }
 };
 
 class Gegl {
