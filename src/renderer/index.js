@@ -172,6 +172,7 @@ function run_mypaint() {
 var vector = null;
 var last_event = {x: 0, y: 0, time: 0}
 var min_x = null, min_y = null, max_x = null, max_y = null;
+let orig_buffer = null;
 function tablet_motion(ev, tablet) {
     let canvas = $("#canvas")[0];
     let client = canvas.getBoundingClientRect();
@@ -184,6 +185,7 @@ function tablet_motion(ev, tablet) {
             mypaint.mypaint_brush_new_stroke(brush);
             min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
             watch.clear();
+            orig_buffer = image.current_layer.clone_buffer();
         } else {
             console.log("motion")
             if (offset_x < min_x) min_x = offset_x;
@@ -213,6 +215,7 @@ function tablet_motion(ev, tablet) {
             bounds.y = min_y;
             bounds.width = max_x - min_x;
             bounds.height = max_y - min_y;
+//            image.current_layer.copy_from_buffer(orig_buffer);
             blit(canvas,true, bounds);
             watch.show();
         }
