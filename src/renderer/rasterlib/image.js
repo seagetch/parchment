@@ -75,7 +75,7 @@ class RasterImage {
         while (gegl.gegl_processor_work(processor, null)) {};
         gegl.g_object_unref(processor);
     }
-    update_async(x, y, width, height, callback, postponed = false) {
+    update_async(x, y, width, height, callback) {
         if (this.awaiting_rect) {
             if (x < this.awaiting_rect[0]) {
                 this.awaiting_rect[0] = x;
@@ -91,18 +91,11 @@ class RasterImage {
             }
         }
         if (this.updating){
-            if (!this.awaiting_rect || postponed) {
-                let self = this;
-                if (!this.awaiting_rect)
-                    this.awaiting_rect = [x, y, x + width, y + height];
-                console.log("run postpone")
-                setImmediate(() => {self.update_async(x, y, width, height, callback, true)});
-            } else {
-                console.log("just updating rect.")
+            if (!this.awaiting_rect) {
+                this.awaiting_rect = [x, y, x + width, y + height];
             }
             return;
         }
-        console.log("process")
         let r_x = this.awaiting_rect? this.awaiting_rect[0]: x;
         let r_y = this.awaiting_rect? this.awaiting_rect[1]: y;
         let r_w = this.awaiting_rect? this.awaiting_rect[2] - this.awaiting_rect[0]: width;
@@ -114,8 +107,17 @@ class RasterImage {
             if (result)
                 gegl.gegl_processor_work.async(processor, null, waiter);
             else {
-                this.updating = false;
                 callback(r_x, r_y, r_w, r_h);
+                this.updating = false;
+                if (this.awaiting_rect) {
+                    let r_x = this.awaiting_rect[0];
+                    let r_y = this.awaiting_rect[1];
+                    let r_w = this.awaiting_rect[2] - this.awaiting_rect[0];
+                    let r_h = this.awaiting_rect[3] - this.awaiting_rect[1];
+                    let self = this;
+                    this.awaiting_rect = null;
+                    setImmediate(() => {self.update_async(r_x, r_y, r_w, r_h, callback)});
+                }
                 gegl.g_object_unref(processor);
             }
         }
