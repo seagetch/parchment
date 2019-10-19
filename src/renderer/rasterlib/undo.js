@@ -11,10 +11,12 @@ class UndoStack {
             let freed = this.reverse_stack[i];
             freed.dispose();
         }
+        this.reverse_stack.length = 0;
         for (let i = 0; i < this.stack.length; i ++) {
             let freed = this.stack[i];
             freed.dispose();
         }
+        this.stack.length = 0;
     }
 
     push(undo) {
@@ -25,7 +27,7 @@ class UndoStack {
         this.reverse_stack.length = 0;
         this.stack.push(undo);
         if (this.stack.length > this.max_depth) {
-            let freed = this.stack.unshift();
+            let freed = this.stack.shift();
             freed.dispose();
         }
     }

@@ -17,7 +17,7 @@ class RasterImage {
         this.width  = width;
         this.height = height;
         this.buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'G'B'A u8"));
-        this.undos  = new UndoStack(this, 30);
+        this.undos  = new UndoStack(this, 3000);
     }
     dispose() {
         for (let i = 0; i < this.layers.length; i ++)
