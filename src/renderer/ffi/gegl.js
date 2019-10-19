@@ -127,6 +127,36 @@ class Gegl {
         this.PGeglRectangle = ref.refType(this.GeglRectangle);
         this.Babl = ref.types.void;
         this.PBabl = ref.refType(this.Babl);
+
+        this.GEGL_ABYSS_NONE  = 0;
+        this.GEGL_ABYSS_CLAMP = 1;
+        this.GEGL_ABYSS_LOOP  = 2;
+        this.GEGL_ABYSS_BLACK = 3;
+        this.GEGL_ABYSS_WHITE = 4;
+
+        this.GEGL_ACCESS_READ      = 1 << 0;
+        this.GEGL_ACCESS_WRITE     = 1 << 1;
+        this.GEGL_ACCESS_READWRITE = (this.GEGL_ACCESS_READ | this.GEGL_ACCESS_WRITE);
+
+        this.GEGL_ORIENTATION_HORIZONTAL = 0;
+        this.GEGL_ORIENTATION_VERTICAL   = 1;
+
+        this.GEGL_DITHER_NONE                     = 0;
+        this.GEGL_DITHER_FLOYD_STEINBERG          = 1;
+        this.GEGL_DITHER_BAYER                    = 2;
+        this.GEGL_DITHER_RANDOM                   = 3;
+        this.GEGL_DITHER_RANDOM_COVARIANT         = 4;
+        this.GEGL_DITHER_ARITHMETIC_ADD           = 5;
+        this.GEGL_DITHER_ARITHMETIC_ADD_COVARIANT = 6;
+        this.GEGL_DITHER_ARITHMETIC_XOR           = 7;
+        this.GEGL_DITHER_ARITHMETIC_XOR_COVARIANT = 8;
+
+        this.GEGL_SAMPLER_NEAREST = 0;
+        this.GEGL_SAMPLER_LINEAR  = 1;
+        this.GEGL_SAMPLER_CUBIC   = 2;
+        this.GEGL_SAMPLER_NOHALO  = 3;
+        this.GEGL_SAMPLER_LOHALO  = 4;
+
         const strings = ArrayType('string');
         // FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
         Object.assign(this, ffi.Library(lib_config['libbabl'], {
@@ -147,6 +177,7 @@ class Gegl {
             'gegl_buffer_new':[this.PGeglBuffer,[this.PGeglRectangle, this.PBabl]],
             'gegl_buffer_linear_open':['pointer',[this.PGeglBuffer, this.PGeglRectangle, 'int *', this.PBabl]],
             'gegl_buffer_linear_close':['void',[this.PGeglBuffer, 'pointer']],
+            'gegl_buffer_get_extent':[this.PGeglRectangle, [this.PGeglBuffer]],
             'gegl_color_new': ['pointer', ['string']],
             'gegl_node_process': ['void', [this.PGeglNode]]
         }));
@@ -166,6 +197,11 @@ class Gegl {
 
     node(parent, desc = {}) {
         return new Node(parent, desc);
+    }
+
+    with(object, callback) {
+        callback(object);
+        this.g_object_unref(object);
     }
 }
 

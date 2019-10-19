@@ -13,6 +13,7 @@ const RasterLayer = require('./rasterlib/layer')(gegl);
 const brush_loader = require('./resources/brushset')(mypaint);
 const path = require('path');
 const process = require("process");
+const LayerBufferUndo = require("./rasterlib/layerbufferundo")(gegl);
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
@@ -172,7 +173,7 @@ function run_mypaint() {
 var vector = null;
 var last_event = {x: 0, y: 0, time: 0}
 var min_x = null, min_y = null, max_x = null, max_y = null;
-let orig_buffer = null;
+let undo = null;
 function tablet_motion(ev, tablet) {
     let canvas = $("#canvas")[0];
     let client = canvas.getBoundingClientRect();
@@ -181,32 +182,31 @@ function tablet_motion(ev, tablet) {
     if (tablet.pressure > 0) {
         if (!vector) {
             vector = true;
-            console.log("press")
+            console.log("press"); // press event
             mypaint.mypaint_brush_new_stroke(brush);
             min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
             watch.clear();
-            orig_buffer = image.current_layer.clone_buffer();
+            undo = new LayerBufferUndo(image, image.current_layer);
+            undo.start();
         } else {
-            console.log("motion")
-            if (offset_x < min_x) min_x = offset_x;
-            if (offset_y < min_y) min_y = offset_y;
-            if (max_x < offset_x) max_x = offset_x;
-            if (max_y < offset_y) max_y = offset_y;
+            console.log("motion"); // motion event
             let dtime = (tablet.time - last_event.time)/1000.0;
             watch.start_watch(0);
             let rect = new mypaint.MyPaintRectangle();
             mypaint.mypaint_surface_begin_atomic(surface);
             mypaint.mypaint_brush_stroke_to(brush, surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
             mypaint.mypaint_surface_end_atomic(surface, rect.ref());
+            if (rect.x < min_x) min_x = rect.x;
+            if (rect.y < min_y) min_y = rect.y;
+            if (max_x < rect.x + rect.width) max_x = rect.x + rect.width;
+            if (max_y < rect.y + rect.height) max_y = rect.y + rect.height;
             last_event = tablet;
             watch.lap(0);
             blit(canvas, false, rect);
-    
-            // motion event
         }
     } else {
         if (vector) {
-            console.log("release")
+            console.log("release"); // release event
             mypaint.mypaint_brush_reset(brush);
             watch.show();
             watch.clear();
@@ -215,7 +215,9 @@ function tablet_motion(ev, tablet) {
             bounds.y = min_y;
             bounds.width = max_x - min_x;
             bounds.height = max_y - min_y;
-//            image.current_layer.copy_from_buffer(orig_buffer);
+            undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
+            image.undos.push(undo);
+            undo = null;
             blit(canvas,true, bounds);
             watch.show();
         }
@@ -242,6 +244,28 @@ function refresh_brushes() {
     }
 }
 
+function refresh_layers() {
+    $("#layers").html("");
+    for (let i = image.layers.length - 1; i >= 0; i --) {
+        let layer = image.layers[i];
+        gegl.with(layer.thumbnail(48), (buffer) => {
+            let rect = gegl.gegl_buffer_get_extent(buffer).deref();
+            console.log("rect.x:"+rect.x+",y:"+rect.y+",w:"+rect.width+",h:"+rect.height);
+            let item = $("<div>").css({width: 48, height: 48}).addClass("rounded tool-box").appendTo("#layers");
+            let img = $("<canvas>").css({width: rect.width, height: rect.height}).appendTo(item);
+            img.width = rect.width;
+            img.height = rect.height;
+
+            let buf  = gegl.gegl_buffer_linear_open(buffer, null, null, gegl.babl_format("R'G'B'A u8"));
+            var buf2 = ref.reinterpret(buf, 4 * rect.width * rect.height, 0);
+            let imageData = new ImageData(new Uint8ClampedArray(buf2, 0, rect.width * rect.height * 4), rect.width, rect.height);
+            let ctx = img[0].getContext("2d");
+            ctx.putImageData(imageData, 0, 0);
+            gegl.gegl_buffer_linear_close(buffer, buf);
+        });
+    }
+}
+
 function read_brushes() {
     let brush_path = path.join(process.cwd(), "brushes");
     brushes = brush_loader(brush_path);
@@ -256,6 +280,36 @@ function resize_canvas() {
         blit(canvas, true, null);
 }
 
+$.fn.dom_resize = function(callback) {
+    for (let i = 0; i < this.length; i ++) {
+        let self = this[i];
+        let observer = new ResizeObserver((entries)=>{
+            console.log("dom_resize")
+            for (let e of entries) {
+                callback($(e.target));
+            }
+        });
+        observer.observe(self);
+        self.observer = observer;
+    }
+    return this;
+}
+
+$(function() {
+    $('.vertical-tool-box').css({
+        'position' : 'fixed',
+        'top' : '50%',
+        'margin-top' : function() {return -$(this).outerHeight()/2}
+    }).dom_resize((elem) => {
+        console.log("resize")
+        elem.css({
+            'position' : 'fixed',
+            'top' : '50%',
+            'margin-top' : function() {return -elem.outerHeight()/2}
+        })
+    });
+});
+
 $(window).on("load", () =>{
     resize_canvas();
     run_gegl();
@@ -269,4 +323,15 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     run_mypaint();
     run_libinput(bounds);
     read_brushes();
+    refresh_layers();
+
+    $("#undo").on("click", ()=>{
+        console.log("undo: clicked")
+        image.undos.undo();
+        blit($('#canvas')[0], true)
+    })
+    $("#redo").on("click", ()=>{
+        image.undos.redo();
+        blit($('#canvas')[0], true)
+    })
 })

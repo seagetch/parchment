@@ -6,17 +6,25 @@
     <script>window.$ = window.jQuery = require('jquery');</script>
     <script src="./index.js"></script>
     <div class="container-fluid" style="position: absolute; width: 100%; height: 100vh; z-index: 10">
-    <ul class="nav justify-content-center bg-primary rounded-bottom" id="tool-box">
-        <li class="nav-item">
-                <a class="nav-link"><i class="fas fa-paint-brush fa-1x"></i>Brush</a>
-        </li>
-        <li class="nav-item">
-                <a class="nav-link"><i class="fas fa-undo fa-1x"></i>Undo</a>
-        </li>
-    </ul>
-    <div class="border bg-white border-primary rounded-left p-2 float-right" style="width: 96px" id="brush-palette">
-        Palette
+        <ul class="nav shadow-sm border font-weight-light text-primary justify-content-center rounded-bottom tool-box align-content-xl-center" id="tool-box">
+            <li class="nav-item">
+                <a class="nav-link" id="main-menu"><i class="fas fa-th-list fa-1x"></i></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="undo"><i class="fas fa-undo fa-1x"></i>Undo</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="redo"><i class="fas fa-redo fa-1x"></i>Redo</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link"><i class="fas fa-paint-brush fa-1x"></i></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link"><i class="fas fa-eraser fa-1x"></i></a>
+            </li>
+        </ul>
     </div>
-    </div>
-    <canvas id="canvas" ></canvas>
+    <div class="rounded-left  p-2 vertical-tool-box shadow-sm" style="position: fixed; right: 0; width: 64px" id="layers">Layers</div>
+    <div class="rounded-right p-2 vertical-tool-box shadow-sm" style="position: fixed; left:  0; width: 96px" id="brush-palette">Palette</div>
+    <canvas class="main-canvas" id="canvas" ></canvas>
 </body>

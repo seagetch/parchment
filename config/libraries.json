@@ -1,8 +1,8 @@
 {
-    "libbabl": "/usr/local/lib/x86_64-linux-gnu/libbabl-0.1.so",
-    "libgegl": "/usr/local/lib/x86_64-linux-gnu/libgegl-0.4.so",
-    "libgobject": "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0",
-    "libmypaint": "/usr/local/lib/libmypaint-1.4.so.0",
-    "libmypaint-gegl": "/usr/local/lib/libmypaint-gegl-1.4.so",
-    "libinput": "/usr/lib/x86_64-linux-gnu/libinput.so.10"
+    "libbabl": "libbabl-0.1.so",
+    "libgegl": "libgegl-0.3.so",
+    "libgobject": "libgobject-2.0.so.0",
+    "libmypaint": "libmypaint-1.3.so.0",
+    "libmypaint-gegl": "libmypaint-gegl.so",
+    "libinput": "libinput.so.10"
 }

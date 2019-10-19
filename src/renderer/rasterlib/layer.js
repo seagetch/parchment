@@ -75,7 +75,33 @@ class RasterLayer {
         out_node.process();
         top_node.dispose();
     }
+    thumbnail(size) {
+        let thumb_x, thumb_y;
+        if (this.width > this.height) {
+            thumb_x = size;
+            thumb_y = size * this.height / this.width;
+        } else {
+            thumb_y = size;
+            thumb_x = size * this.width / this.height;
+        }
+        var rect = new gegl.GeglRectangle();
+        rect.x = 0;
+        rect.y = 0;
+        rect.width = thumb_x;
+        rect.height = thumb_y;
+
+        let buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'G'B'A u8"));
+        let top_node = gegl.node();
+        let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: buffer});
+        let scale_node = gegl.node(top_node, {operation: "gegl:scale-size-keepaspect", x: thumb_x, y: thumb_y});
+        let out_node = gegl.node(top_node, {operation: "gegl:write-buffer", buffer: buffer});
+        in_node.connect_to(scale_node, out_node);
+        out_node.process();
+        top_node.dispose();
+        return buffer;
+    }
 };
+
 
 function init(_gegl) {
     gegl = _gegl;

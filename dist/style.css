@@ -1,4 +1,4 @@
-canvas {
+.main-canvas {
     width: 100vw;
     height: 100vh;
     display: block;
@@ -6,4 +6,12 @@ canvas {
     top: 0;
     left: 0;
     background-color: black;
+}
+
+.tool-box,   .vertical-tool-box {
+    border-style: solid;
+    border-width: 1px;
+    border-color: #e4e4e4; 
+    background-color: #f8f8f8;
+    z-index: 10;
 }

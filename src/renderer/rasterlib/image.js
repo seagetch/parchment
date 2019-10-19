@@ -1,5 +1,6 @@
 const Layer_Generator = require('./layer');
 const ref = require('ref-napi');
+const UndoStack = require('./undo');
 
 var gegl;
 var Layer;
@@ -16,6 +17,7 @@ class RasterImage {
         this.width  = width;
         this.height = height;
         this.buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'G'B'A u8"));
+        this.undos  = new UndoStack(this, 30);
     }
     dispose() {
         for (let i = 0; i < this.layers.length; i ++)
@@ -28,6 +30,8 @@ class RasterImage {
             this.last_node.dispose();
         this.gnode = null;
         this.last_node = null;
+        if (this.undos)
+            this.undos.dispose();
     }
     validate() {
         if (this.last_node) {
