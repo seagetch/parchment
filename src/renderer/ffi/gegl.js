@@ -113,7 +113,7 @@ class Node {
     }
 
     blit(rect, dest, babl=null) {
-        gegl.gegl_node_blit(this.node, 1.0, rect? rect.ref(): null, babl? babl: gegl.babl_format("R'G'B'A u8"), dest, parseInt(gegl.GEGL_AUTO_ROWSTRIDE), parseInt(gegl.GEGL_BLIT_CACHE));
+        gegl.gegl_node_blit(this.node, 1.0, rect? rect.ref(): null, babl? babl: gegl.babl_format("R'G'B'A u8"), dest, parseInt(gegl.GEGL_AUTO_ROWSTRIDE), parseInt(gegl.GEGL_BLIT_DEFAULT));
     }
 };
 

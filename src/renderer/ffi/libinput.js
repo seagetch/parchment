@@ -71,11 +71,19 @@ class LibInput {
     }
 
     suspend() {
-        this.libinput_suspend(this.li);
+//            console.log("do_suspend")
+//            this.libinput_suspend(this.li);
+//            console.log("done_suspend");
+            this.suspended = true;
     }
 
     resume() {
-        this.libinput_resume(this.li);
+//        if (this.li && this.suspended) {
+//            console.log("do_resume")
+//            this.libinput_resume(this.li);
+//            console.log("done_resume");
+            this.suspended = false;
+//        }
     }
 
     watch(callback) {
@@ -89,6 +97,8 @@ class LibInput {
                 if (event_type == 0)
                     return;
                 var event = this.libinput_get_event(this.li);
+                if (this.suspended)
+                    continue;
                 // handle the event here
                 switch (event_type) {
                 case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:

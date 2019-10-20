@@ -34,11 +34,6 @@ function run_rasterlib(bounds) {
         buf2.fill(255);
     });
     let layer = new RasterLayer(0, 0, bounds.width, bounds.height);
-    layer.lock(gegl.babl_format("R'G'B'A u8"), null, (buffer, stride) => {
-        var buf2 = ref.reinterpret(buffer, bounds.width*bounds.height, 0);
-        buf2.type = ref.types.uint8;
-        buf2.fill(0);
-    });
     image.add_layer(layer);
     image.select_layer(1);
 
@@ -257,7 +252,7 @@ function refresh_layers() {
         let layer = image.layers[i];
         let thumb = layer.thumbnail(48);
 
-        let item = $("<div>").css({width: 48, height: 48}).addClass("rounded tool-item").appendTo("#layer-list").attr("layer-index", i);
+        let item = $("<div>").css({width: 50, height: 50}).addClass("rounded tool-item").appendTo("#layer-list").attr("layer-index", i);
         let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
         img[0].width  = thumb.width;
         img[0].height = thumb.height;
