@@ -24,7 +24,14 @@
             </li>
         </ul>
     </div>
-    <div class="rounded-left  p-2 vertical-tool-box shadow-sm" style="position: fixed; right: 0; width: 64px" id="layers">Layers</div>
-    <div class="rounded-right p-2 vertical-tool-box shadow-sm" style="position: fixed; left:  0; width: 96px" id="brush-palette">Palette</div>
+    <div class="rounded-left  p-2 vertical-tool-box shadow-sm" style="position: fixed; right: 0; width: 64px">
+        <div id="layers">
+            <div class="rounded-circle bg-primary fa fa-plus fa-2x text-white p-2" id="add-layer"></div>
+            <div id="layer-list">Layers</div>
+        </div>
+    </div>
+    <div class="rounded-right p-2 vertical-tool-box shadow-sm" style="position: fixed; left:  0; width: 96px">
+        <div id="brush-palette">Brushes</div>
+    </div>
     <canvas class="main-canvas" id="canvas" ></canvas>
 </body>

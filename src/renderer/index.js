@@ -170,7 +170,7 @@ function run_mypaint() {
     surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
 }
 
-var vector = null;
+var painting = null;
 var last_event = {x: 0, y: 0, time: 0}
 var min_x = null, min_y = null, max_x = null, max_y = null;
 let undo = null;
@@ -180,14 +180,17 @@ function tablet_motion(ev, tablet) {
     let offset_x = tablet.x - (client.left + window.screenLeft);
     let offset_y = tablet.y - (client.top + window.screenTop);
     if (tablet.pressure > 0) {
-        if (!vector) {
-            vector = true;
+        if (!painting) {
+            painting = true;
             console.log("press"); // press event
             mypaint.mypaint_brush_new_stroke(brush);
             min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
             watch.clear();
             undo = new LayerBufferUndo(image, image.current_layer);
             undo.start();
+            ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
+                $(i).css({opacity: 0.3})
+            });
         } else {
             console.log("motion"); // motion event
             let dtime = (tablet.time - last_event.time)/1000.0;
@@ -205,7 +208,7 @@ function tablet_motion(ev, tablet) {
             blit(canvas, false, rect);
         }
     } else {
-        if (vector) {
+        if (painting) {
             console.log("release"); // release event
             mypaint.mypaint_brush_reset(brush);
             watch.show();
@@ -220,8 +223,11 @@ function tablet_motion(ev, tablet) {
             undo = null;
             blit(canvas,true, bounds);
             watch.show();
+            ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
+                $(i).css({opacity: 1.0})
+            });
         }
-        vector = false;
+        painting = false;
     }
 }    
 
@@ -245,7 +251,7 @@ function refresh_brushes() {
 }
 
 function refresh_layers() {
-    $("#layers").html("");
+    $("#layer-list").html("");
     for (let i = image.layers.length - 1; i >= 0; i --) {
         let layer = image.layers[i];
         gegl.with(layer.thumbnail(48), (buffer) => {
@@ -329,9 +335,24 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         console.log("undo: clicked")
         image.undos.undo();
         blit($('#canvas')[0], true)
-    })
+    });
     $("#redo").on("click", ()=>{
         image.undos.redo();
         blit($('#canvas')[0], true)
-    })
+    });
+
+    ['.tool-box', '.vertical-tool-box'].forEach((i) => {
+        $(i).on("mouseenter", (ev)=>{
+            if (!painting) {
+                console.log("suspend");
+                libinput.suspend();
+            }
+        });
+        $(i).on("mouseleave", (ev)=>{
+            if (!painting) {
+                console.log("resume");
+                libinput.resume();
+            }
+        });
+    });
 })

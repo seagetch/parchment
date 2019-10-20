@@ -47,7 +47,10 @@ class LibInput {
             'libinput_event_tablet_tool_get_time': ['uint32', ['pointer']]
         }));
 
+        this.init(paths);
+    }
 
+    init(paths) {
         var open_callback = function(path, flag, user_data) {
             var fd = fs.openSync(path, flag, 0o400);
             return fd < 0 ? -1 : fd;
@@ -55,10 +58,9 @@ class LibInput {
         var close_callback = function(fd, user_data) {
             fs.closeSync(fd);
         }
-        var libinput_interface = new this.libinput_interface();
+        let libinput_interface = new this.libinput_interface();
         libinput_interface.open_restricted  = open_callback;
         libinput_interface.close_restricted = close_callback;
-    
         this.li = this.libinput_path_create_context(libinput_interface.ref(), null);
     
         // FIXME: target device should be dynamically determined in the future.
@@ -66,6 +68,14 @@ class LibInput {
             this.libinput_path_add_device(this.li, p)
         });
         this.libinput_udev_assign_seat(this.li, "seat0");                
+    }
+
+    suspend() {
+        this.libinput_suspend(this.li);
+    }
+
+    resume() {
+        this.libinput_resume(this.li);
     }
 
     watch(callback) {
