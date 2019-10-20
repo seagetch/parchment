@@ -20,24 +20,19 @@ class LayerBufferUndo {
     }
     undo() {
         if (this.undo_buffer) {
-            console.log("LayerBufferUndo:undo")
             this.redo_buffer = this.layer.clone_buffer();
             this.layer.copy_from_buffer(this.undo_buffer);
-            if (this.bounds)
-                this.image.update(this.bounds.x, this.bounds.y, this.bounds.width, this.bounds.y);
-            else
-                this.image.update_all();
+            return this.bounds;
         }
+        return null;
     }
     redo() {
         if (this.redo_buffer) {
             this.undo_buffer = this.layer.clone_buffer();
             this.layer.copy_from_buffer(this.redo_buffer);
-            if (this.bounds)
-                this.image.update(this.bounds.x, this.bounds.y, this.bounds.width, this.bounds.y);
-            else
-                this.image.update_all();
+            return this.bounds;
         }
+        return null;
     }
     dispose() {
         if (this.redo_buffer)

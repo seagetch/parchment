@@ -35,17 +35,19 @@ class UndoStack {
     undo() {
         if (this.stack.length > 0) {
             let result = this.stack.pop();
-            result.undo();
             this.reverse_stack.push(result);
+            return result.undo();
         }
+        return null;
     }
 
     redo() {
         if (this.reverse_stack.length > 0) {
             let redoing = this.reverse_stack.pop();
-            redoing.redo();
             this.stack.push(redoing);
+            return redoing.redo();
         }
+        return null;
     }
 }
 module.exports = UndoStack;

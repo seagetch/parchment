@@ -257,7 +257,7 @@ function refresh_layers() {
         gegl.with(layer.thumbnail(48), (buffer) => {
             let rect = gegl.gegl_buffer_get_extent(buffer).deref();
             console.log("rect.x:"+rect.x+",y:"+rect.y+",w:"+rect.width+",h:"+rect.height);
-            let item = $("<div>").css({width: 48, height: 48}).addClass("rounded tool-box").appendTo("#layers");
+            let item = $("<div>").css({width: 48, height: 48}).addClass("rounded tool-item").appendTo("#layers");
             let img = $("<canvas>").css({width: rect.width, height: rect.height}).appendTo(item);
             img.width = rect.width;
             img.height = rect.height;
@@ -333,12 +333,14 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     $("#undo").on("click", ()=>{
         console.log("undo: clicked")
-        image.undos.undo();
-        blit($('#canvas')[0], true)
+        let drect = image.undos.undo();
+        if (drect)
+            console.log("drect"+drect.x+","+drect.y+","+drect.width+","+drect.height);
+        blit($('#canvas')[0], true, drect);
     });
     $("#redo").on("click", ()=>{
-        image.undos.redo();
-        blit($('#canvas')[0], true)
+        let drect = image.undos.redo();
+        blit($('#canvas')[0], true, drect);
     });
 
     ['.tool-box', '.vertical-tool-box'].forEach((i) => {
