@@ -226,6 +226,7 @@ function tablet_motion(ev, tablet) {
             ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
                 $(i).css({opacity: 1.0})
             });
+            refresh_layers();
         }
         painting = false;
     }
@@ -254,21 +255,23 @@ function refresh_layers() {
     $("#layer-list").html("");
     for (let i = image.layers.length - 1; i >= 0; i --) {
         let layer = image.layers[i];
-        gegl.with(layer.thumbnail(48), (buffer) => {
-            let rect = gegl.gegl_buffer_get_extent(buffer).deref();
-            console.log("rect.x:"+rect.x+",y:"+rect.y+",w:"+rect.width+",h:"+rect.height);
-            let item = $("<div>").css({width: 48, height: 48}).addClass("rounded tool-item").appendTo("#layers");
-            let img = $("<canvas>").css({width: rect.width, height: rect.height}).appendTo(item);
-            img.width = rect.width;
-            img.height = rect.height;
+        let thumb = layer.thumbnail(48);
 
-            let buf  = gegl.gegl_buffer_linear_open(buffer, null, null, gegl.babl_format("R'G'B'A u8"));
-            var buf2 = ref.reinterpret(buf, 4 * rect.width * rect.height, 0);
-            let imageData = new ImageData(new Uint8ClampedArray(buf2, 0, rect.width * rect.height * 4), rect.width, rect.height);
-            let ctx = img[0].getContext("2d");
-            ctx.putImageData(imageData, 0, 0);
-            gegl.gegl_buffer_linear_close(buffer, buf);
+        let item = $("<div>").css({width: 48, height: 48}).addClass("rounded tool-item").appendTo("#layer-list").attr("layer-index", i);
+        let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
+        img[0].width  = thumb.width;
+        img[0].height = thumb.height;
+        if (layer == image.current_layer)
+            item.addClass("border-primary");
+        item.on("click", (ev)=>{
+            image.select_layer(i);
+            mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
+            refresh_layers();
         });
+
+        let ctx = img[0].getContext("2d");
+        let imageData = new ImageData(thumb.buffer, thumb.width, thumb.height);
+        ctx.putImageData(imageData, 0, 0);
     }
 }
 
@@ -332,10 +335,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     refresh_layers();
 
     $("#undo").on("click", ()=>{
-        console.log("undo: clicked")
         let drect = image.undos.undo();
-        if (drect)
-            console.log("drect"+drect.x+","+drect.y+","+drect.width+","+drect.height);
         blit($('#canvas')[0], true, drect);
     });
     $("#redo").on("click", ()=>{
@@ -357,4 +357,10 @@ ipcRenderer.on("screen-size", (event, bounds) => {
             }
         });
     });
+
+    $('#add-layer').on("click", () => {
+        let index = image.layers.indexOf(image.current_layer);
+        image.insert_layer(new RasterLayer(0, 0, image.width, image.height), index + 1);
+        refresh_layers();
+    })
 })

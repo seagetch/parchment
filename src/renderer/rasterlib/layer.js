@@ -53,27 +53,27 @@ class RasterLayer {
         }
     }
     clone_buffer() {
-        let top_node = gegl.node();
-        var rect = new gegl.GeglRectangle();
-        rect.x = this.x;
-        rect.y = this.y;
-        rect.width = this.width;
-        rect.height = this.height;
-        let buffer = gegl.gegl_buffer_new(rect.ref(), color_format);
-        let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
-        let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer", buffer: buffer});
-        in_node.output().connect_to(out_node.input());
-        out_node.process();
-        top_node.dispose();
-        return buffer;
+        return gegl.with_node((top_node) => {
+            var rect = new gegl.GeglRectangle();
+            rect.x = this.x;
+            rect.y = this.y;
+            rect.width = this.width;
+            rect.height = this.height;
+            let buffer = gegl.gegl_buffer_new(rect.ref(), color_format);
+            let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
+            let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer", buffer: buffer});
+            in_node.output().connect_to(out_node.input());
+            out_node.process();
+            return buffer;
+        });
     }
     copy_from_buffer(buffer) {
-        let top_node = gegl.node();
-        let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: buffer});
-        let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer", buffer: this.buffer});
-        in_node.output().connect_to(out_node.input());
-        out_node.process();
-        top_node.dispose();
+        gegl.with_node((top_node) => {
+            let in_node  = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: buffer});
+            let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer",   buffer: this.buffer});
+            in_node.output().connect_to(out_node.input());
+            out_node.process();
+        });
     }
     thumbnail(size) {
         let thumb_x, thumb_y;
@@ -90,15 +90,16 @@ class RasterLayer {
         rect.width = thumb_x;
         rect.height = thumb_y;
 
-        let buffer = gegl.gegl_buffer_new(rect.ref(), gegl.babl_format("R'G'B'A u8"));
-        let top_node = gegl.node();
-        let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: buffer});
-        let scale_node = gegl.node(top_node, {operation: "gegl:scale-size-keepaspect", x: thumb_x, y: thumb_y});
-        let out_node = gegl.node(top_node, {operation: "gegl:write-buffer", buffer: buffer});
-        in_node.connect_to(scale_node, out_node);
-        out_node.process();
-        top_node.dispose();
-        return buffer;
+        return gegl.with_node((top_node)=>{
+            console.log("thumbnail")
+            let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
+            let scale_node = gegl.node(top_node, {operation: "gegl:scale-size", sampler: gegl.GEGL_SAMPLER_NEAREST, x: thumb_x, y: thumb_y});
+            in_node.output().connect_to(scale_node.input());
+            console.log("copy buffer: w="+thumb_x+",h="+thumb_y)
+            let buffer = new Uint8ClampedArray(thumb_x * thumb_y * 4);
+            scale_node.blit(rect, buffer);
+            return {width: rect.width, height: rect.height, buffer: buffer};
+        });
     }
 };
 

@@ -44,11 +44,22 @@ class RasterImage {
         layer.parent = this;
         this.validate();
     }
+    insert_layer(layer, index) {
+        if (index == this.layers.length)
+            this.add_layer(layer);
+        else {
+            this.layers.splice(index, 0, layer);
+            this.validate();
+        }
+    }
     remove_layer(layer) {
         var i = this.layers.indexOf(layer);
         if (i >= 0) {
             this.layers.splice(i, 1);
             layer.parent = null;
+        }
+        if (layer == this.current_layer) {
+            this.current_layer = (i < this.layers.length)? this.layers[i]: this.layers[this.layers.length - 1];
         }
         this.validate();
     }
