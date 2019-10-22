@@ -23,14 +23,12 @@ class Node {
         for (let i in desc) {
             let v = desc[i];
             if (typeof(v) === 'bigint') {
-                console.log("type: int")
                 types.push('string');
                 types.push('int');
                 args.push(i.toString())
                 args.push(parseInt(v));
             } else if (typeof(v) === 'number') {
                 types.push('string');
-                console.log("type: double")
                 types.push('double');
                 args.push(i.toString())
                 args.push(v);

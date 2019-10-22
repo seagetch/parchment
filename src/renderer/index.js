@@ -252,16 +252,52 @@ function refresh_layers() {
         let layer = image.layers[i];
         let thumb = layer.thumbnail(48);
 
-        let item = $("<div>").css({width: 50, height: 50}).addClass("rounded tool-item").appendTo("#layer-list").attr("layer-index", i);
+        let item = $("<div>").css({width: 50, height: 50, position: "relative"}).addClass("rounded tool-item").appendTo("#layer-list").attr("layer-index", i);
         let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
         img[0].width  = thumb.width;
         img[0].height = thumb.height;
         if (layer == image.current_layer)
             item.addClass("border-primary");
+
+        let delete_btn = $("<div>").addClass("text-white rounded-circle bg-danger").appendTo(item).css({
+            position: "absolute", top: 0, right: 0, width: 14, height: 14, padding: 1
+        }).hide();
+        $("<i>").addClass("fas fa-times fa-sm").appendTo(delete_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
+        let visible_btn = $("<div>").addClass("text-white rounded-circle bg-secondary").appendTo(item).css({
+            position: "absolute", top: 0, left: 0, width: 14, height: 14, padding: 1
+        }).hide();
+        $("<i>").addClass(layer.visible? "fas fa-eye fa-sm": "fas fa-eye-slash fa-sm").appendTo(visible_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
+
         item.on("click", (ev)=>{
+            console.log("Select layer")
             image.select_layer(i);
             mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
             refresh_layers();
+        }).on("mouseenter", (ev)=>{
+            delete_btn.show();
+            visible_btn.show();
+        }).on("mouseleave", (ev)=>{
+            delete_btn.hide();
+            visible_btn.hide();
+        });
+
+        delete_btn.on("click", (ev)=>{
+            console.log("remove layer "+layer)
+            let update_current_layer = (image.current_layer == layer);
+            image.remove_layer(layer);
+            refresh_layers();
+            if (update_current_layer) {
+                mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
+            }
+            blit($('#canvas')[0], true, null);
+            return false
+        });
+        visible_btn.on("click",(ev)=>{
+            console.log("visible")
+            layer.set_visibility(!layer.visible);
+            blit($('#canvas')[0], true);
+            refresh_layers();
+            return false;
         });
 
         let ctx = img[0].getContext("2d");

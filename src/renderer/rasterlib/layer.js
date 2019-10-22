@@ -16,6 +16,7 @@ class RasterLayer {
         rect.height = height;
         this.buffer = gegl.gegl_buffer_new(rect.ref(), color_format);
         this.compositor = "gegl:over";
+        this.visible = true;
     }
     dispose() {
         gegl.g_object_unref(this.buffer);
@@ -42,6 +43,8 @@ class RasterLayer {
         this.y = y;
     }
     update_op(top_node, base_node) {
+        if (!this.visible)
+            return base_node;
         if (!base_node) {
             return gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
         } else {
@@ -95,11 +98,18 @@ class RasterLayer {
             let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
             let scale_node = gegl.node(top_node, {operation: "gegl:scale-size", sampler: gegl.GEGL_SAMPLER_NEAREST, x: thumb_x, y: thumb_y});
             in_node.output().connect_to(scale_node.input());
-            console.log("copy buffer: w="+thumb_x+",h="+thumb_y)
             let buffer = new Uint8ClampedArray(thumb_x * thumb_y * 4);
             scale_node.blit(rect, buffer);
             return {width: rect.width, height: rect.height, buffer: buffer};
         });
+    }
+    set_visibility(value) {
+        if (value != this.visible) {
+            this.visible = value;
+            if (this.parent){
+                this.parent.validate();
+            }
+        }
     }
 };
 

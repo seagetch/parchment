@@ -49,14 +49,18 @@ class RasterImage {
             this.add_layer(layer);
         else {
             this.layers.splice(index, 0, layer);
+            layer.parent = this;
             this.validate();
         }
     }
     remove_layer(layer) {
         var i = this.layers.indexOf(layer);
         if (i >= 0) {
+            console.log("remove_layer: remove layer at "+i)
             this.layers.splice(i, 1);
             layer.parent = null;
+        } else {
+            console.log("remove_layer: tried to remove unknown layer")
         }
         if (layer == this.current_layer) {
             this.current_layer = (i < this.layers.length)? this.layers[i]: this.layers[this.layers.length - 1];

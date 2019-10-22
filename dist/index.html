@@ -36,17 +36,17 @@
             </li>
         </ul>
     </div>
-    <div class="rounded-left  p-2 vertical-tool-box shadow-sm" style="position: fixed; right: 0; width: 64px">
+    <div class="rounded-left  p-2 vertical-tool-box shadow-sm" style="position: fixed; right: 0; width: 72px">
         <div id="layers">
             <div class="d-flex justify-content-center">
-                <div class="rounded-circle bg-primary fa fa-plus fa-2x text-white p-2 my-2 shadow" id="add-layer"></div>
+                <div class="rounded-circle bg-primary fa fa-plus fa-1x text-white p-2 my-2 shadow-sm" style="width: 32; height: 32" id="add-layer"></div>
             </div>
             <hr color="#e4e4e4">
-            <div id="layer-list">Layers</div>
+            <div id="layer-list" style="max-height: 50vh; overflow-y: scroll; overflow-x: hidden;">Layers</div>
         </div>
     </div>
-    <div class="rounded-right p-2 vertical-tool-box shadow-sm" style="position: fixed; left:  0; width: 96px">
-        <div id="brush-palette">Brushes</div>
+    <div class="rounded-right p-2 vertical-tool-box shadow-sm" style="position: fixed; left:  0; width: 90px">
+        <div id="brush-palette" style="max-height: 70vh; overflow-y: scroll; overflow-x: hidden;">Brushes</div>
     </div>
     <canvas class="main-canvas" id="canvas" ></canvas>
 </body>
