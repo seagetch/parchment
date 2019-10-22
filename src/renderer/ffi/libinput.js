@@ -22,8 +22,14 @@ export default class LibInput {
         this.Plibinput_t  = ref.refType(this.libinput_t);
         this.libinput_event = ref.types.void;
         this.Plibinput_event = ref.refType(this.libinput_event);
+        Object.assign(this, ffi.Library(lib_config['libudev'], {
+            'udev_new': ['pointer', []],
+            'udev_ref': ['pointer', ['pointer']],
+            'udev_unref': ['pointer', ['pointer']],
+        }));
 
         Object.assign(this, ffi.Library(lib_config['libinput'], {
+            'libinput_udev_create_context': [ this.Plibinput_t, [ this.Plibinput_interface, 'pointer', 'pointer' ] ],
             'libinput_path_create_context': [ this.Plibinput_t, [ this.Plibinput_interface, 'pointer' ] ],
             'libinput_path_add_device': [ 'pointer', [ this.Plibinput_t, 'string' ] ],
             'libinput_path_remove_device': ['void', ['pointer']],
@@ -58,16 +64,29 @@ export default class LibInput {
         var close_callback = function(fd, user_data) {
             fs.closeSync(fd);
         }
+        this.udev = this.udev_new();
         let libinput_interface = new this.libinput_interface();
         libinput_interface.open_restricted  = open_callback;
         libinput_interface.close_restricted = close_callback;
-        this.li = this.libinput_path_create_context(libinput_interface.ref(), null);
-    
+        this.li = this.libinput_udev_create_context(libinput_interface.ref(), null, this.udev);
+    /*
         // FIXME: target device should be dynamically determined in the future.
         paths.forEach(p => {
             this.libinput_path_add_device(this.li, p)
         });
+        */
         this.libinput_udev_assign_seat(this.li, "seat0");                
+    }
+
+    dispose() {
+        if (this.li) {
+            this.libinput_unref(this.li);
+            this.li = null;
+        }
+        if (this.udev) {
+            this.udev_unref(this.udev);
+            this.udev = null;
+        }
     }
 
     suspend() {
