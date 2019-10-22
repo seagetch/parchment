@@ -10,7 +10,7 @@ import RasterImage from './rasterlib/image';
 import RasterLayer from './rasterlib/layer';
 import LayerGroup from './rasterlib/layergroup';
 import LayerBufferUndo from './rasterlib/layerbufferundo';
-import LibInput from './ffi/libinput';
+import libinput from './ffi/libinput';
 import mypaint from './ffi/libmypaint'
 const brush_loader = require('./resources/brushset')(mypaint);
 
@@ -229,9 +229,7 @@ function tablet_motion(ev, tablet) {
     }
 }    
 
-var libinput;
 function run_libinput(screen_size) {
-    libinput = new LibInput(['/dev/input/event3']);
     libinput.current_bounds = screen_size;
     libinput.watch(tablet_motion);
 }

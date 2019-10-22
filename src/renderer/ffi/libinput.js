@@ -6,8 +6,8 @@ const epoll = require('epoll').Epoll;
 
 import lib_config from '../resources/lib_config'
 
-export default class LibInput {
-    constructor(paths) {
+class LibInput {
+    constructor() {
         this.LIBINPUT_EVENT_TABLET_TOOL_AXIS = 600;
         this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY = 601;
         this.LIBINPUT_EVENT_TABLET_TOOL_TIP = 602;
@@ -53,10 +53,10 @@ export default class LibInput {
             'libinput_event_tablet_tool_get_time': ['uint32', ['pointer']]
         }));
 
-        this.init(paths);
+        this.init();
     }
 
-    init(paths) {
+    init() {
         var open_callback = function(path, flag, user_data) {
             var fd = fs.openSync(path, flag, 0o400);
             return fd < 0 ? -1 : fd;
@@ -69,12 +69,6 @@ export default class LibInput {
         libinput_interface.open_restricted  = open_callback;
         libinput_interface.close_restricted = close_callback;
         this.li = this.libinput_udev_create_context(libinput_interface.ref(), null, this.udev);
-    /*
-        // FIXME: target device should be dynamically determined in the future.
-        paths.forEach(p => {
-            this.libinput_path_add_device(this.li, p)
-        });
-        */
         this.libinput_udev_assign_seat(this.li, "seat0");                
     }
 
@@ -148,3 +142,6 @@ export default class LibInput {
         poller.add(fd, epoll.EPOLLIN);
     }
 };
+
+let libinput = new LibInput();
+export default libinput;
