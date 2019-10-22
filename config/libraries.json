@@ -4,5 +4,6 @@
     "libgobject": "libgobject-2.0.so.0",
     "libmypaint": "libmypaint-1.3.so.0",
     "libmypaint-gegl": "libmypaint-gegl.so",
-    "libinput": "libinput.so.10"
+    "libinput": "libinput.so.10",
+    "libudev":  "libudev.so.1"
 }
