@@ -2,8 +2,10 @@ const ffi = require('ffi-napi');
 const ref = require('ref-napi');
 const Struct = require('ref-struct-di')(ref);
 
-var gegl;
-class LibMyPaint {
+import gegl from '../ffi/gegl';
+import lib_config from '../resources/lib_config'
+let libmypaint;
+export class LibMyPaint {
     constructor(lib_config) {
         this.MyPaintBrush = ref.types.void;
         this.PMyPaintBrush = ref.refType(this.MyPaintBrush);
@@ -72,12 +74,11 @@ class LibMyPaint {
     }
 }
 
-var libmypaint = null;
-function init(lib_config, _gegl) {
+function init(lib_config) {
     if (libmypaint)
         return libmypaint;
-    gegl = _gegl;
+    console.log("Create new libmypaint instance.")
     libmypaint = new LibMyPaint(lib_config);
     return libmypaint;
 }
-module.exports = init;
+export default libmypaint = init(lib_config)

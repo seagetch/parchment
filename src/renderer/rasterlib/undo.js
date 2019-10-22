@@ -1,4 +1,4 @@
-class UndoStack {
+export default class UndoStack {
     constructor(image, max_depth) {
         this.stack = new Array();
         this.reverse_stack = new Array();
@@ -50,4 +50,3 @@ class UndoStack {
         return null;
     }
 }
-module.exports = UndoStack;

@@ -2,18 +2,17 @@ const { ipcRenderer } = require('electron')
 const electron = require('electron');
 const ref = require('ref-napi');
 const fs = require('fs');
-
-const lib_config = JSON.parse(fs.readFileSync('./config/libraries.json', 'utf8'));
-
-const gegl = require('./ffi/gegl')(lib_config);
-const LibInput = require('./ffi/libinput')(lib_config);
-const mypaint = require('./ffi/libmypaint')(lib_config, gegl);
-const RasterImage = require('./rasterlib/image')(gegl);
-const RasterLayer = require('./rasterlib/layer')(gegl);
-const brush_loader = require('./resources/brushset')(mypaint);
 const path = require('path');
 const process = require("process");
-const LayerBufferUndo = require("./rasterlib/layerbufferundo")(gegl);
+
+import gegl from './ffi/gegl';
+import RasterImage from './rasterlib/image';
+import RasterLayer from './rasterlib/layer';
+import LayerGroup from './rasterlib/layergroup';
+import LayerBufferUndo from './rasterlib/layerbufferundo';
+import LibInput from './ffi/libinput';
+import mypaint from './ffi/libmypaint'
+const brush_loader = require('./resources/brushset')(mypaint);
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
@@ -194,10 +193,12 @@ function tablet_motion(ev, tablet) {
             mypaint.mypaint_surface_begin_atomic(surface);
             mypaint.mypaint_brush_stroke_to(brush, surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
             mypaint.mypaint_surface_end_atomic(surface, rect.ref());
-            if (rect.x < min_x) min_x = rect.x;
-            if (rect.y < min_y) min_y = rect.y;
-            if (max_x < rect.x + rect.width) max_x = rect.x + rect.width;
-            if (max_y < rect.y + rect.height) max_y = rect.y + rect.height;
+            if (rect.width > 0 && rect.height > 0) {
+                if (rect.x < min_x) min_x = rect.x;
+                if (rect.y < min_y) min_y = rect.y;
+                if (max_x < rect.x + rect.width) max_x = rect.x + rect.width;
+                if (max_y < rect.y + rect.height) max_y = rect.y + rect.height;
+            }
             last_event = tablet;
             watch.lap(0);
             blit(canvas, false, rect);
@@ -216,6 +217,7 @@ function tablet_motion(ev, tablet) {
             undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
             image.undos.push(undo);
             undo = null;
+            console.log("update "+bounds.x+","+bounds.y+","+bounds.width+","+bounds.height)
             blit(canvas,true, bounds);
             watch.show();
             ['.tool-box', '.vertical-tool-box'].forEach((i)=>{

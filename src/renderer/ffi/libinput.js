@@ -4,9 +4,9 @@ const ref = require('ref-napi');
 const Struct = require('ref-struct-di')(ref);
 const epoll = require('epoll').Epoll;
 
-var lib_config = null;
+import lib_config from '../resources/lib_config'
 
-class LibInput {
+export default class LibInput {
     constructor(paths) {
         this.LIBINPUT_EVENT_TABLET_TOOL_AXIS = 600;
         this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY = 601;
@@ -129,10 +129,3 @@ class LibInput {
         poller.add(fd, epoll.EPOLLIN);
     }
 };
-
-function init(_lib_config) {
-    lib_config = _lib_config;
-    return LibInput;
-}
-// FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
-module.exports = init;

@@ -2,10 +2,10 @@ const ffi = require('ffi-napi');
 const ref = require('ref-napi');
 const ArrayType = require('ref-array-di')(ref);
 const Struct = require('ref-struct-di')(ref);
+import lib_config from '../resources/lib_config'
+let gegl;
 
-var gegl;
-
-class Pad {
+export class Pad {
     constructor(node, label) {
         this.node = node;
         this.label = label
@@ -16,7 +16,7 @@ class Pad {
     }
 };
 
-class Node {
+export class Node {
     constructor(parent = null, desc = {}) {
         let args = [];
         let types = [];
@@ -114,8 +114,7 @@ class Node {
         gegl.gegl_node_blit(this.node, 1.0, rect? rect.ref(): null, babl? babl: gegl.babl_format("R'G'B'A u8"), dest, parseInt(gegl.GEGL_AUTO_ROWSTRIDE), parseInt(gegl.GEGL_BLIT_DEFAULT));
     }
 };
-
-class Gegl {
+export class Gegl {
     constructor(lib_config) {
         this.GeglBuffer = ref.types.void;
         this.PGeglBuffer = ref.refType(this.GeglBuffer);
@@ -223,12 +222,18 @@ class Gegl {
     }
 }
 
-var gegl = null;
 function init(lib_config) {
     if (gegl)
         return gegl;
-    gegl = new Gegl(lib_config);
-    gegl.init();
+
+    if (lib_config) {
+        console.log("Create new gegl inistance.")
+        gegl = new Gegl(lib_config);
+        gegl.init();
+    } else {
+        console.error("No lib_config information.");
+    }
     return gegl;
 }
-module.exports = init;
+
+export default gegl = init(lib_config);

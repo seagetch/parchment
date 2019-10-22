@@ -1,9 +1,9 @@
 const ref  = require("ref-napi");
-var gegl;
 
-var color_format;
-class RasterLayer {
-    constructor(x, y, width, height) {
+import gegl from '../ffi/gegl';
+var color_format = gegl.babl_format("R'aG'aB'aA u15");
+export default class RasterLayer {
+    constructor(x, y, width, height, format = color_format) {
         var rect = new gegl.GeglRectangle();
         this.parent = null;
         this.x      = x;
@@ -14,7 +14,7 @@ class RasterLayer {
         rect.y      = y;
         rect.width  = width;
         rect.height = height;
-        this.buffer = gegl.gegl_buffer_new(rect.ref(), color_format);
+        this.buffer = gegl.gegl_buffer_new(rect.ref(), format);
         this.compositor = "gegl:over";
         this.visible = true;
     }
@@ -113,10 +113,10 @@ class RasterLayer {
     }
 };
 
-
-function init(_gegl) {
+/*
+export default function init(_gegl) {
     gegl = _gegl;
     color_format = gegl.babl_format("R'aG'aB'aA u15")
     return RasterLayer;
 }
-module.exports = init;
+*/

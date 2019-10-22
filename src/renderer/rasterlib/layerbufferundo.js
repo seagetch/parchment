@@ -1,6 +1,6 @@
-var gegl;
+import gegl from '../ffi/gegl';
 
-class LayerBufferUndo {
+export default class LayerBufferUndo {
     constructor(image, layer) {
         this.image = image;
         this.layer = layer;
@@ -41,8 +41,9 @@ class LayerBufferUndo {
             gegl.g_object_unref(this.undo_buffer);
     }
 }
-function init(_gegl) {
+/*
+export default function init(_gegl) {
     gegl = _gegl;
     return LayerBufferUndo;
 }
-module.exports = init;
+*/
