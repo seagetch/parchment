@@ -14,6 +14,7 @@ export default class RasterLayer {
         rect.y      = y;
         rect.width  = width;
         rect.height = height;
+        this.format = format;
         this.buffer = gegl.gegl_buffer_new(rect.ref(), format);
         this.compositor = "gegl:over";
         this.visible = true;
@@ -62,7 +63,7 @@ export default class RasterLayer {
             rect.y = this.y;
             rect.width = this.width;
             rect.height = this.height;
-            let buffer = gegl.gegl_buffer_new(rect.ref(), color_format);
+            let buffer = gegl.gegl_buffer_new(rect.ref(), this.format);
             let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
             let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer", buffer: buffer});
             in_node.output().connect_to(out_node.input());
@@ -112,11 +113,3 @@ export default class RasterLayer {
         }
     }
 };
-
-/*
-export default function init(_gegl) {
-    gegl = _gegl;
-    color_format = gegl.babl_format("R'aG'aB'aA u15")
-    return RasterLayer;
-}
-*/

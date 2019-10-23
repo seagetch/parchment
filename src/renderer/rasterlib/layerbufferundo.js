@@ -40,10 +40,4 @@ export default class LayerBufferUndo {
         if (this.undo_buffer)
             gegl.g_object_unref(this.undo_buffer);
     }
-}
-/*
-export default function init(_gegl) {
-    gegl = _gegl;
-    return LayerBufferUndo;
-}
-*/
+};

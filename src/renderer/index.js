@@ -1,7 +1,5 @@
 const { ipcRenderer } = require('electron')
-const electron = require('electron');
 const ref = require('ref-napi');
-const fs = require('fs');
 const path = require('path');
 const process = require("process");
 
@@ -11,7 +9,8 @@ import RasterLayer from './rasterlib/layer';
 import LayerGroup from './rasterlib/layergroup';
 import LayerBufferUndo from './rasterlib/layerbufferundo';
 import libinput from './ffi/libinput';
-import mypaint from './ffi/libmypaint'
+import mypaint from './ffi/libmypaint';
+import * as layerundo from './rasterlib/layerundo';
 const brush_loader = require('./resources/brushset')(mypaint);
 
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -284,10 +283,14 @@ function refresh_layers() {
         delete_btn.on("click", (ev)=>{
             console.log("remove layer "+layer)
             let update_current_layer = (image.current_layer == layer);
-            image.remove_layer(layer);
-            refresh_layers();
-            if (update_current_layer) {
-                mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
+            let index = image.layers.indexOf(layer);
+            if (index >= 0) {
+                image.remove_layer(layer);
+                image.undos.push(new layerundo.RemoveLayerUndo(layer, image, index));
+                refresh_layers();
+                if (update_current_layer) {
+                    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
+                }
             }
             blit($('#canvas')[0], true, null);
             return false
@@ -367,10 +370,12 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     $("#undo").on("click", ()=>{
         let drect = image.undos.undo();
+        refresh_layers();
         blit($('#canvas')[0], true, drect);
     });
     $("#redo").on("click", ()=>{
         let drect = image.undos.redo();
+        refresh_layers();
         blit($('#canvas')[0], true, drect);
     });
 
@@ -391,7 +396,9 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     $('#add-layer').on("click", () => {
         let index = image.layers.indexOf(image.current_layer);
-        image.insert_layer(new RasterLayer(0, 0, image.width, image.height), index + 1);
+        let layer = new RasterLayer(0, 0, image.width, image.height);
+        image.insert_layer(layer, index + 1);
+        image.undos.push(new layerundo.InsertLayerUndo(layer, image, index));
         refresh_layers();
     })
 })

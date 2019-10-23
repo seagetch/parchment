@@ -30,7 +30,5 @@ app.on("ready", ()=>{
     })
     window.setMenuBarVisibility(false);
     window.show();
-
-//    libinput_main();
 });
 

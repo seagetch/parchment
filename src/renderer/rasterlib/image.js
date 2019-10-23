@@ -1,4 +1,3 @@
-const ref = require('ref-napi');
 import UndoStack from './undo';
 import LayerGroup from './layergroup';
 

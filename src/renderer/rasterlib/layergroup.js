@@ -1,5 +1,3 @@
-const ref = require('ref-napi');
-
 import gegl from '../ffi/gegl';
 import RasterLayer from './layer';
 
@@ -16,10 +14,10 @@ export default class LayerGroup extends RasterLayer {
         for (let i = 0; i < this.layers.length; i ++)
             this.layers[i].dispose();
         this.layers.length = 0;
-        if (this.gnode)
+        if (this.gnode) {
             this.gnode.dispose();
-        if (this.last_node)
-            this.last_node.dispose();
+            this.gnode = null;
+        }
         this.gnode = null;
         this.last_node = null;
         super.dispose();
@@ -51,12 +49,15 @@ export default class LayerGroup extends RasterLayer {
             this.layers.splice(i, 1);
             layer.parent = null;
         } else {
-            console.log("remove_layer: tried to remove unknown layer")
+            console.log("remove_layer: tried to remove unknown layer");
+            layer = null;
         }
         if (layer == this.current_layer) {
             this.current_layer = (i < this.layers.length)? this.layers[i]: this.layers[this.layers.length - 1];
         }
-        this.validate();
+        if (layer)
+            this.validate();
+        return layer;
     }
     update_children_op() {
         if (this.gnode)
@@ -143,9 +144,3 @@ export default class LayerGroup extends RasterLayer {
         return this.current_layer;
     }
 };
-/*
-export default function init(_gegl) {
-    gegl = _gegl;
-    return LayerGroup;
-}
-*/
