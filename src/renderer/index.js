@@ -385,6 +385,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
                 console.log("suspend");
                 libinput.suspend();
             }
+            ev.stopPropagation();
         });
         $(i).on("mouseleave", (ev)=>{
             if (!painting) {
@@ -392,6 +393,19 @@ ipcRenderer.on("screen-size", (event, bounds) => {
                 libinput.resume();
             }
         });
+    });
+
+    $(document.body).on("mouseenter",(ev) => {
+        if (!painting) {
+            console.log("resume");
+            libinput.resume();
+        }
+    });
+    $(document.body).on("mouseleave", (ev)=>{
+        if (!painting) {
+            console.log("suspend");
+            libinput.suspend();
+        }
     });
 
     $('#add-layer').on("click", () => {
