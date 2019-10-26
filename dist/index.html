@@ -39,7 +39,7 @@
     <div class="rounded-left  p-2 vertical-tool-box shadow-sm" style="position: fixed; right: 0; width: 72px">
         <div id="layers">
             <div class="d-flex justify-content-center">
-                <div class="rounded-circle bg-primary fa fa-plus fa-1x text-white p-2 my-2 shadow-sm" style="width: 32; height: 32" id="add-layer"></div>
+                <div class="rounded-circle bg-primary text-white p-2 my-2 shadow-sm" style="width: 32; height: 32" id="add-layer"><i class="fa fa-plus fa-1x"></i></div>
             </div>
             <hr color="#e4e4e4">
             <div id="layer-list" style="max-height: 50vh; overflow-y: scroll; overflow-x: hidden;">Layers</div>
@@ -47,6 +47,20 @@
     </div>
     <div class="rounded-right p-2 vertical-tool-box shadow-sm" style="position: fixed; left:  0; width: 90px">
         <div id="brush-palette" style="max-height: 70vh; overflow-y: scroll; overflow-x: hidden;">Brushes</div>
+        <hr color="#e4e4e4">
+        <div id="color-picker" class="d-flex justify-content-center" style="position: relative; height: 40px">
+            <div>
+                <div id="color-fg" class="input-group colorpicker-component border" style="position: absolute; width: 32px; height: 32px; position: absolute; z-index: 21; top: 0; left: 0">
+                    <input class="form-control" value="red" type="hidden"></input>
+                    <span class="colorpicker-input-addon" style="width: 100%; height: 100%"><i style="width: 100%; height: 100%"></i></span>
+                </div>
+                <div id="color-bg" class="input-group colorpicker-component border" style="position: absolute; width: 32px; height: 32px; z-index: 20; top: 10; left: 10">
+                        <input class="form-control" value="red" type="hidden"></input>
+                        <span class="colorpicker-input-addon"><i style="width: 100%; height: 100%"></i></span>
+                    </div>
+                </div>
+        </div>
     </div>
+
     <canvas class="main-canvas" id="canvas" ></canvas>
 </body>

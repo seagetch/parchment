@@ -5,6 +5,31 @@ const Struct = require('ref-struct-di')(ref);
 import gegl from '../ffi/gegl';
 import lib_config from '../resources/lib_config'
 let libmypaint;
+
+export class MypaintBrush {
+    constructor(brush) {
+        this.brush = brush;
+    }
+
+    dispose() {
+        if (this.brush)
+            libmypaint.mypaint_brush_unref(this.brush);
+    }
+
+    get_setting_id(cname) {
+        return libmypaint.mypaint_brush_setting_from_cname(cname);
+    }
+
+    base_value(cname) {
+        let id = this.get_setting_id(cname);
+        libmypaint.mypaint_brush_get_base_value(this.brush, id);
+    }
+
+    base_value(cname, value) {
+        let id = this.get_setting_id(cname);
+        libmypaint.mypaint_brush_set_base_value(this.brush, id, value);
+    }
+};
 export class LibMyPaint {
     constructor(lib_config) {
         this.MyPaintBrush = ref.types.void;
@@ -64,6 +89,7 @@ export class LibMyPaint {
             'mypaint_surface_init': ['void', [this.PMyPaintSurface]],
             'mypaint_surface_ref': ['void', [this.PMyPaintSurface]],
             'mypaint_surface_unref': ['void', [this.PMyPaintSurface]],
+            'mypaint_brush_setting_from_cname': ['int', ['string']]
         }));
         Object.assign(this, ffi.Library(lib_config['libmypaint-gegl'], {
             'mypaint_gegl_tiled_surface_get_buffer': [gegl.PGeglBuffer, [this.PMyPaintGeglTiledSurface]],

@@ -9,16 +9,19 @@ import RasterLayer from './rasterlib/layer';
 import LayerGroup from './rasterlib/layergroup';
 import LayerBufferUndo from './rasterlib/layerbufferundo';
 import libinput from './ffi/libinput';
-import mypaint from './ffi/libmypaint';
+import mypaint, {MypaintBrush} from './ffi/libmypaint';
 import * as layerundo from './rasterlib/layerundo';
 const brush_loader = require('./resources/brushset')(mypaint);
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
+import "bootstrap-colorpicker/dist/css/bootstrap-colorpicker.css";
+import "bootstrap-colorpicker";
 
 import '@fortawesome/fontawesome-free/js/fontawesome';
 import '@fortawesome/fontawesome-free/js/solid';
 import '@fortawesome/fontawesome-free/js/regular';
+import { createPublicKey } from 'crypto';
 
 var image;
 
@@ -46,6 +49,7 @@ class StopWatch {
         this.start = new Array(sections);
         this.total = new Array(sections);
         this.id = 0;
+        this.clear();
     }
 
     start_watch(id) {
@@ -76,7 +80,6 @@ class StopWatch {
     }
 }
 var watch = new StopWatch(10);
-watch.clear();
 function blit(canvas, direct = false, drect=null) {
     let do_blit = () => {
         if (drect && (direct.width == 0 || drect.height == 0))
@@ -104,31 +107,25 @@ function blit(canvas, direct = false, drect=null) {
             if (rect.width <= 0 || rect.height <= 0)
                 return;
         }
-        watch.start_watch(0);
         image.update_async(rect.x, rect.y, rect.width, rect.height, (x, y, w, h) => {
             console.log("async_done")
-            watch.lap(1);
             let rect2 = new gegl.GeglRectangle();
             rect2.x = x;
             rect2.y = y;
             rect2.width = w;
             rect2.height = h;
             image.lock(gegl.babl_format("R'G'B'A u8"), rect2, (buffer, stride) => {
-                watch.lap(2);
                 var buf2 = ref.reinterpret(buffer, stride * rect2.height, 0);
                 let imageData = null;
                 if (stride == rect2.width * 4) {
                     imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect2.width * rect2.height * 4), rect2.width, rect2.height);
-                    watch.lap(3);
                 } else {
                     let data = new Uint8ClampedArray(rect2.width * rect2.height * 4);
                     for (let y = 0; y < rect2.height; y ++)
                         buf2.copy(data, rect2.width * y * 4, stride * y, st * (y + 1));
                     imageData = new ImageData(data, rect2.width, rect2.height);
-                    watch.lap(4);
                 }
                 ctx.putImageData(imageData, rect2.x, rect2.y);
-                watch.stop(5);
             });
         });
     };
@@ -142,7 +139,6 @@ function blit(canvas, direct = false, drect=null) {
 
 
 function run_gegl() {
-    console.log("run_gegl")
     var rect = new gegl.GeglRectangle();
     rect.x = 0, rect.y = 0;
     rect.width = $("#canvas")[0].width
@@ -154,20 +150,25 @@ function run_gegl() {
 var brush;
 var gegl_surface;
 var surface;
+var color_fg = [  0,   0,   0];
+var color_bg = [1, 1, 1];
 
 function run_mypaint() {
-    brush = mypaint.mypaint_brush_new();
-    mypaint.mypaint_brush_from_defaults(brush);
+    brush = new MypaintBrush(mypaint.mypaint_brush_new());
+    mypaint.mypaint_brush_from_defaults(brush.brush);
     gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
     mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
     surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
 }
 
-var painting = null;
+var grabbed  = false;
+var painting = false;
 var last_event = {x: 0, y: 0, time: 0}
 var min_x = null, min_y = null, max_x = null, max_y = null;
 let undo = null;
 function tablet_motion(ev, tablet) {
+    if (grabbed)
+        return;
     let canvas = $("#canvas")[0];
     let client = canvas.getBoundingClientRect();
     let offset_x = tablet.x - (client.left + window.screenLeft);
@@ -176,9 +177,11 @@ function tablet_motion(ev, tablet) {
         if (!painting) {
             painting = true;
             console.log("press"); // press event
-            mypaint.mypaint_brush_new_stroke(brush);
+            brush.base_value("color_h", color_fg[0]);
+            brush.base_value("color_s", color_fg[1]);
+            brush.base_value("color_v", color_fg[2]);
+            mypaint.mypaint_brush_new_stroke(brush.brush);
             min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
-            watch.clear();
             undo = new LayerBufferUndo(image, image.current_layer);
             undo.start();
             ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
@@ -187,10 +190,9 @@ function tablet_motion(ev, tablet) {
         } else {
             console.log("motion"); // motion event
             let dtime = (tablet.time - last_event.time)/1000.0;
-            watch.start_watch(0);
             let rect = new mypaint.MyPaintRectangle();
             mypaint.mypaint_surface_begin_atomic(surface);
-            mypaint.mypaint_brush_stroke_to(brush, surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
+            mypaint.mypaint_brush_stroke_to(brush.brush, surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
             mypaint.mypaint_surface_end_atomic(surface, rect.ref());
             if (rect.width > 0 && rect.height > 0) {
                 if (rect.x < min_x) min_x = rect.x;
@@ -199,15 +201,12 @@ function tablet_motion(ev, tablet) {
                 if (max_y < rect.y + rect.height) max_y = rect.y + rect.height;
             }
             last_event = tablet;
-            watch.lap(0);
             blit(canvas, false, rect);
         }
     } else {
         if (painting) {
             console.log("release"); // release event
-            mypaint.mypaint_brush_reset(brush);
-            watch.show();
-            watch.clear();
+            mypaint.mypaint_brush_reset(brush.brush);
             let bounds = new mypaint.MyPaintRectangle();
             bounds.x = min_x;
             bounds.y = min_y;
@@ -218,7 +217,6 @@ function tablet_motion(ev, tablet) {
             undo = null;
             console.log("update "+bounds.x+","+bounds.y+","+bounds.width+","+bounds.height)
             blit(canvas,true, bounds);
-            watch.show();
             ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
                 $(i).css({opacity: 1.0})
             });
@@ -239,10 +237,47 @@ function refresh_brushes() {
     for (let path in brushes) {
         let b = brushes[path];
         let img = $("<img>").addClass("rounded").attr("src", b.icon).css({"width": 32, "height": 32}).appendTo("#brush-palette");
+        if (brush == b.brush) {
+            img.addClass("border border-primary");
+        }
         img.on("click", (ev) => {
             brush = b.brush;
+            refresh_brushes();
         })
     }
+    let fg = $("#color-fg");
+    $("input", fg).attr("value", "hsv("+color_fg[0]+","+color_fg[1]+","+color_fg[2]+")");
+    fg.colorpicker().on("colorpickerChange", (e)=>{
+        color_fg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
+        console.log(color_fg);
+    }).on("colorpickerShow", (ev) =>{
+        console.log("colorpickerShow");
+        grabbed = true;
+    }).on("colorpickerHide", (ev) =>{
+        console.log("hidePicker");
+        grabbed = false;
+    })
+    let bg = $("#color-bg");
+    $("input", bg).attr("value", "hsv("+color_bg[0]+","+color_bg[1]+","+color_bg[2]+")");
+    bg.colorpicker().on("colorpickerChange", (e)=>{
+        color_bg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
+        console.log(color_bg);
+    }).on("colorpickerShow", (ev) =>{
+        console.log("colorpickerShow");
+        grabbed = true;
+    }).on("colorpickerHide", (ev) =>{
+        console.log("hidePicker");
+        grabbed = false;
+    })
+}
+
+function read_brushes() {
+    let brush_path = path.join(process.cwd(), "brushes");
+    brushes = brush_loader(brush_path);
+    for (let path in brushes) {
+        brushes[path].brush = new MypaintBrush(brushes[path].brush);
+    }
+    refresh_brushes();
 }
 
 function refresh_layers() {
@@ -309,12 +344,6 @@ function refresh_layers() {
     }
 }
 
-function read_brushes() {
-    let brush_path = path.join(process.cwd(), "brushes");
-    brushes = brush_loader(brush_path);
-    refresh_brushes();
-}
-
 function resize_canvas() {
     let canvas = $("#canvas")[0];
     canvas.width = window.innerWidth;
@@ -369,11 +398,13 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     refresh_layers();
 
     $("#undo").on("click", ()=>{
+        console.log("undo");
         let drect = image.undos.undo();
         refresh_layers();
         blit($('#canvas')[0], true, drect);
     });
     $("#redo").on("click", ()=>{
+        console.log("redo");
         let drect = image.undos.redo();
         refresh_layers();
         blit($('#canvas')[0], true, drect);
