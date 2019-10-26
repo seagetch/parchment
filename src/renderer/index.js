@@ -11,6 +11,7 @@ import LayerBufferUndo from './rasterlib/layerbufferundo';
 import libinput from './ffi/libinput';
 import mypaint, {MypaintBrush} from './ffi/libmypaint';
 import * as layerundo from './rasterlib/layerundo';
+import {ExportOra} from './rasterlib/export/ora';
 const brush_loader = require('./resources/brushset')(mypaint);
 
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -397,6 +398,11 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     read_brushes();
     refresh_layers();
 
+    $("#file-save").on("click", () =>{
+        let exporter = new ExportOra(image);
+        exporter.process("test.ora");
+    });
+
     $("#undo").on("click", ()=>{
         console.log("undo");
         let drect = image.undos.undo();
@@ -445,5 +451,5 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         image.insert_layer(layer, index + 1);
         image.undos.push(new layerundo.InsertLayerUndo(layer, image, index));
         refresh_layers();
-    })
+    });
 })
