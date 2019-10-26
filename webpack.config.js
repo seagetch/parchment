@@ -35,7 +35,7 @@ module.exports = [
         rules: [
             { test: /\.ts$/, exclude: /node_modules/, loader: 'ts-loader', options: { appendTsSuffixTo: [/\.vue$/] }},
             { test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader',},
-			{ test: /\.css$/, use: [ "style-loader", "css-loader"] },
+            { test: /\.css$/, use: [ "style-loader", "css-loader"] },
             { test: /\.vue$/, loader: 'vue-loader'}
         ]
     },
@@ -46,6 +46,8 @@ module.exports = [
         whitelist: [
             "bootstrap/dist/css/bootstrap.min.css", 
             "bootstrap", 
+            "bootstrap-colorpicker/dist/css/bootstrap-colorpicker.css",
+            "bootstrap-colorpicker",
             "@fortawesome/fontawesome-free/js/fontawesome", 
             "@fortawesome/fontawesome-free/js/regular", 
             "@fortawesome/fontawesome-free/js/solid"
