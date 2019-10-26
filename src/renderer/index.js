@@ -151,7 +151,7 @@ var brush;
 var gegl_surface;
 var surface;
 var color_fg = [  0,   0,   0];
-var color_bg = [1, 1, 1];
+var color_bg = [  0,   0,   1];
 
 function run_mypaint() {
     brush = new MypaintBrush(mypaint.mypaint_brush_new());
