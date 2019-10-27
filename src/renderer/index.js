@@ -24,10 +24,35 @@ import '@fortawesome/fontawesome-free/js/solid';
 import '@fortawesome/fontawesome-free/js/regular';
 import { createPublicKey } from 'crypto';
 
+function on_image_update(image, x, y, w, h) {
+    let canvas = $('#canvas')[0];
+    let ctx = canvas.getContext("2d");
+    console.log("async_done")
+    let rect2 = new gegl.GeglRectangle();
+    rect2.x = x;
+    rect2.y = y;
+    rect2.width = w;
+    rect2.height = h;
+    image.lock(gegl.babl_format("R'G'B'A u8"), rect2, (buffer, stride) => {
+        var buf2 = ref.reinterpret(buffer, stride * rect2.height, 0);
+        let imageData = null;
+        if (stride == rect2.width * 4) {
+            imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect2.width * rect2.height * 4), rect2.width, rect2.height);
+        } else {
+            let data = new Uint8ClampedArray(rect2.width * rect2.height * 4);
+            for (let y = 0; y < rect2.height; y ++)
+                buf2.copy(data, rect2.width * y * 4, stride * y, st * (y + 1));
+            imageData = new ImageData(data, rect2.width, rect2.height);
+        }
+        ctx.putImageData(imageData, rect2.x, rect2.y);
+    });
+};
+
 var image;
 
 function run_rasterlib(bounds) {
     image = new RasterImage(bounds.width, bounds.height);
+    image.on('update', on_image_update);
     let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
     image.add_layer(base_layer);
     base_layer.lock(gegl.babl_format("Y' u8"), null, (buffer, stride) => {
@@ -39,10 +64,8 @@ function run_rasterlib(bounds) {
     image.add_layer(layer);
     image.select_layer(1);
 
-    blit($("#canvas")[0], true);
+    image.update_all_async();
 }
-
-var move_count = 0;
 
 class StopWatch {
     constructor(sections) {
@@ -81,62 +104,6 @@ class StopWatch {
     }
 }
 var watch = new StopWatch(10);
-function blit(canvas, direct = false, drect=null) {
-    let do_blit = () => {
-        if (drect && (direct.width == 0 || drect.height == 0))
-            return;
-        let ctx = canvas.getContext("2d");
-        let rect = new gegl.GeglRectangle();
-        if (!drect) {
-            rect.x = 0; rect.y = 0; rect.width = canvas.width; rect.height = canvas.height;
-        } else {
-            rect.x = drect.x; rect.y = drect.y; rect.width = drect.width; rect.height = drect.height;
-            if (rect.x < 0) {
-                rect.width += rect.x;
-                rect.x = 0;
-            }
-            if (rect.y < 0) {
-                rect.height += rect.y;
-                rect.y = 0;
-            }
-            if (rect.x + rect.width > canvas.width) {
-                rect.width = canvas.width - rect.x;
-            }
-            if (rect.y + rect.height > canvas.height) {
-                rect.height = canvas.height - rect.y;
-            }
-            if (rect.width <= 0 || rect.height <= 0)
-                return;
-        }
-        image.update_async(rect.x, rect.y, rect.width, rect.height, (x, y, w, h) => {
-            console.log("async_done")
-            let rect2 = new gegl.GeglRectangle();
-            rect2.x = x;
-            rect2.y = y;
-            rect2.width = w;
-            rect2.height = h;
-            image.lock(gegl.babl_format("R'G'B'A u8"), rect2, (buffer, stride) => {
-                var buf2 = ref.reinterpret(buffer, stride * rect2.height, 0);
-                let imageData = null;
-                if (stride == rect2.width * 4) {
-                    imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect2.width * rect2.height * 4), rect2.width, rect2.height);
-                } else {
-                    let data = new Uint8ClampedArray(rect2.width * rect2.height * 4);
-                    for (let y = 0; y < rect2.height; y ++)
-                        buf2.copy(data, rect2.width * y * 4, stride * y, st * (y + 1));
-                    imageData = new ImageData(data, rect2.width, rect2.height);
-                }
-                ctx.putImageData(imageData, rect2.x, rect2.y);
-            });
-        });
-    };
-    if (direct || move_count % 1000 == 0) {
-        do_blit();
-    } else {
-        setImmediate(do_blit)
-    }
-    move_count ++;
-}
 
 
 function run_gegl() {
@@ -167,6 +134,8 @@ var painting = false;
 var last_event = {x: 0, y: 0, time: 0}
 var min_x = null, min_y = null, max_x = null, max_y = null;
 let undo = null;
+var move_count = 0;
+
 function tablet_motion(ev, tablet) {
     if (grabbed)
         return;
@@ -202,7 +171,16 @@ function tablet_motion(ev, tablet) {
                 if (max_y < rect.y + rect.height) max_y = rect.y + rect.height;
             }
             last_event = tablet;
-            blit(canvas, false, rect);
+            let do_update = () => {
+                image.update_async(rect.x, rect.y, rect.width, rect.height);
+            }
+            if (move_count % 1000 == 0) {
+                do_update();
+                move_count = 0;
+            } else {
+                setImmediate(do_update)
+            }
+            move_count ++;
         }
     } else {
         if (painting) {
@@ -217,7 +195,7 @@ function tablet_motion(ev, tablet) {
             image.undos.push(undo);
             undo = null;
             console.log("update "+bounds.x+","+bounds.y+","+bounds.width+","+bounds.height)
-            blit(canvas,true, bounds);
+            image.update_async(bounds.x, bounds.y, bounds.width, bounds.height);
             ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
                 $(i).css({opacity: 1.0})
             });
@@ -328,13 +306,13 @@ function refresh_layers() {
                     mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
                 }
             }
-            blit($('#canvas')[0], true, null);
+            image.update_all_async();
             return false
         });
         visible_btn.on("click",(ev)=>{
             console.log("visible")
             layer.set_visibility(!layer.visible);
-            blit($('#canvas')[0], true);
+            image.update_all_async();
             refresh_layers();
             return false;
         });
@@ -350,7 +328,7 @@ function resize_canvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     if (image)
-        blit(canvas, true, null);
+        image.update_all_async();
 }
 
 $.fn.dom_resize = function(callback) {
@@ -407,13 +385,19 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         console.log("undo");
         let drect = image.undos.undo();
         refresh_layers();
-        blit($('#canvas')[0], true, drect);
+        if (drect)
+            image.update_async(drect.x, drect.y, drect.width, drect.height);
+        else
+            image.update_all_async();
     });
     $("#redo").on("click", ()=>{
         console.log("redo");
         let drect = image.undos.redo();
         refresh_layers();
-        blit($('#canvas')[0], true, drect);
+        if (drect)
+            image.update_async(drect.x, drect.y, drect.width, drect.height);
+        else
+            image.update_all_async();
     });
 
     ['.tool-box', '.vertical-tool-box'].forEach((i) => {
@@ -446,9 +430,9 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     });
 
     $('#add-layer').on("click", () => {
-        let index = image.layers.indexOf(image.current_layer);
+        let index = image.layers.indexOf(image.current_layer) + 1;
         let layer = new RasterLayer(0, 0, image.width, image.height);
-        image.insert_layer(layer, index + 1);
+        image.insert_layer(layer, index);
         image.undos.push(new layerundo.InsertLayerUndo(layer, image, index));
         refresh_layers();
     });

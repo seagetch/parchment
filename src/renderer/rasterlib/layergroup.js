@@ -1,5 +1,6 @@
 import gegl from '../ffi/gegl';
 import RasterLayer from './layer';
+const EventEmitter = require("events");
 
 export default class LayerGroup extends RasterLayer {
     constructor(x, y, width, height) {
@@ -8,7 +9,11 @@ export default class LayerGroup extends RasterLayer {
         var rect = new gegl.GeglRectangle();
         this.parent = null;
         this.compositor = "gegl:over";
-        this.visible = true;        
+        this.visible = true;
+        this.events = new EventEmitter();
+    }
+    on(ev, callback) {
+        this.events.on(ev, callback);
     }
     dispose() {
         for (let i = 0; i < this.layers.length; i ++)
@@ -34,7 +39,7 @@ export default class LayerGroup extends RasterLayer {
         this.validate();
     }
     insert_layer(layer, index) {
-        if (index == this.layers.length)
+        if (index >= this.layers.length)
             this.add_layer(layer);
         else {
             this.layers.splice(index, 0, layer);
@@ -82,11 +87,16 @@ export default class LayerGroup extends RasterLayer {
         return this.last_node.new_processor(x, y, width, height);
     }
     update(x, y, width, height) {
+        if (width <= 0 || height <= 0)
+            return;
         let processor = this.update_processor(x, y, width, height)
         while (gegl.gegl_processor_work(processor, null)) {};
         gegl.g_object_unref(processor);
+        this.events.emit("update", this, x, y, width, height);
     }
-    update_async(x, y, width, height, callback) {
+    update_async(x, y, width, height) {
+        if (width <= 0 || height <= 0)
+            return;
         if (this.awaiting_rect) {
             if (x < this.awaiting_rect[0]) {
                 this.awaiting_rect[0] = x;
@@ -111,6 +121,22 @@ export default class LayerGroup extends RasterLayer {
         let r_y = this.awaiting_rect? this.awaiting_rect[1]: y;
         let r_w = this.awaiting_rect? this.awaiting_rect[2] - this.awaiting_rect[0]: width;
         let r_h = this.awaiting_rect? this.awaiting_rect[3] - this.awaiting_rect[1]: height;
+        if (r_x < this.x) {
+            r_w -= this.x - r_x;
+            r_x = this.x;
+        }
+        if (r_y < this.y) {
+            r_h -= this.y - r_y;
+            r_y = this.y;
+        }
+        if (r_x + r_w > this.x + this.width) {
+            r_w = this.x + this.width - r_x;
+        }
+        if (r_y + r_h > this.y + this.height) {
+            r_h = this.y + this.height - r_y;
+        }
+        if (r_w <= 0 || r_h <= 0)
+            return;
         let processor = this.update_processor(r_x, r_y, r_w, r_h);
         this.awaiting_rect = null;
         this.updating = true;
@@ -118,7 +144,7 @@ export default class LayerGroup extends RasterLayer {
             if (result)
                 gegl.gegl_processor_work.async(processor, null, waiter);
             else {
-                callback(r_x, r_y, r_w, r_h);
+                this.events.emit("update", this, r_x, r_y, r_w, r_h);
                 this.updating = false;
                 if (this.awaiting_rect) {
                     let r_x = this.awaiting_rect[0];
@@ -127,7 +153,7 @@ export default class LayerGroup extends RasterLayer {
                     let r_h = this.awaiting_rect[3] - this.awaiting_rect[1];
                     let self = this;
                     this.awaiting_rect = null;
-                    setImmediate(() => {self.update_async(r_x, r_y, r_w, r_h, callback)});
+                    setImmediate(() => {self.update_async(r_x, r_y, r_w, r_h)});
                 }
                 gegl.g_object_unref(processor);
             }
@@ -136,6 +162,9 @@ export default class LayerGroup extends RasterLayer {
     }
     update_all() {
         this.update(0, 0, this.width, this.height);
+    }
+    update_all_async() {
+        this.update_async(0, 0, this.width, this.height);
     }
     select_layer(index) {
         if (index < this.layers.length) {
