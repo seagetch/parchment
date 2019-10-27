@@ -11,7 +11,7 @@ import LayerBufferUndo from './rasterlib/layerbufferundo';
 import libinput from './ffi/libinput';
 import mypaint, {MypaintBrush} from './ffi/libmypaint';
 import * as layerundo from './rasterlib/layerundo';
-import {ExportOra} from './rasterlib/export/ora';
+import * as format_ora from './rasterlib/format/ora';
 const brush_loader = require('./resources/brushset')(mypaint);
 
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -377,8 +377,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     refresh_layers();
 
     $("#file-save").on("click", () =>{
-        let exporter = new ExportOra(image);
-        exporter.process("test.ora");
+        format_ora.save(image, "test.ora");
     });
 
     $("#undo").on("click", ()=>{
