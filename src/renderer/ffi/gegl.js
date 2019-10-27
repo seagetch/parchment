@@ -110,6 +110,10 @@ export class Node {
         gegl.gegl_node_process(this.node);
     }
 
+    process_async(callback) {
+        gegl.gegl_node_process.async(this.node, callback);
+    }
+
     blit(rect, dest, babl=null) {
         gegl.gegl_node_blit(this.node, 1.0, rect? rect.ref(): null, babl? babl: gegl.babl_format("R'G'B'A u8"), dest, parseInt(gegl.GEGL_AUTO_ROWSTRIDE), parseInt(gegl.GEGL_BLIT_DEFAULT));
     }
