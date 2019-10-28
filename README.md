@@ -3,15 +3,18 @@
 Electron-based painting software. (Currently testing technical feasibility to use electron as a base of graphics editing software.)
 
 ## Prerequisites
-
+### Libraries
 - Babl >= 0.1.44
 - Gegl >= 0.3 (0.3 is recommended to work smoothly with libmypaint 1.3.0)
 - libmypaint >= 1.3
 - libinput (tested on 1.10.4)
    Read / write access must be permitted to /dev/input/event<N> (devices for tablet).
-   (Configure udev setting.)
-
-This project has been created using **webpack scaffold**, you can now run
+### Device access permission
+you must be able to read /dev/input/event* files.
+In ubuntu, easiest way is to add yourself to 'input' group.
+```
+sudo usermod -aG input <user name>
+```
 
 ## Install
 Run following commands on terminal.
@@ -36,9 +39,6 @@ Below is the examples of tested environment.
     "libmypaint-gegl": "/usr/local/lib/libmypaint-gegl-1.4.so",
     "libinput": "/usr/lib/x86_64-linux-gnu/libinput.so.10"
 }
-
-2. Updating target tablet devices to open
-Currently hardcoded. Wait a while until application automatically detect device file.
 ```
 
 ## Run
