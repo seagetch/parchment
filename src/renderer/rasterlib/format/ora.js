@@ -8,7 +8,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const UUID = require('pure-uuid');
+const yauzl = require("yauzl");
 const rimraf = require('rimraf');
+const ref = require('ref-napi')
 
 export function save(image, filename) {
     let tempdir = path.join(os.tmpdir(), "parchment-"+new UUID(4).format());
@@ -42,6 +44,7 @@ export function save(image, filename) {
             } else if (layer instanceof RasterLayer) {
                 let layer_name = "layer-"+level+"-"+i;
                 let extent = gegl.gegl_buffer_get_extent(layer.buffer).deref();
+                console.log("extent:"+extent.x+","+extent.y+","+extent.width+","+extent.height)
                 ch("<layer>").attr({
                     name: layer_name, x: extent.x - layer.x, y: extent.y - layer.y, src: "data/"+layer_name+".png", opacity: 1.0, "composite-op": layer.compositor
                 }).appendTo(current_stack);
@@ -64,6 +67,7 @@ export function save(image, filename) {
                 });
             }
         }
+        console.log(ch.xml())
         return;
     }
     
@@ -106,7 +110,7 @@ export function save(image, filename) {
         archive.append(ch.xml(), {name: "stack.xml"});
         archive.directory(tempdatadir, 'data');
         archive.directory(tempthumbdir, 'Thumbnails');
-        archive.file(path.join(tempdir, "mergedimage.png"))
+        archive.file(path.join(tempdir, "mergedimage.png"), {name: "mergedimage.png"})
         archive.finalize();
     });
     output.on("close", ()=>{
@@ -116,4 +120,90 @@ export function save(image, filename) {
 }
 
 export function load(filename) {
+    return new Promise((resolve, reject)=>{
+        let tempdir = path.join(os.tmpdir(), "parchment-"+new UUID(4).format());
+        let tempdatadir = path.join(tempdir, "data");
+        let tempthumbdir = path.join(tempdir, "Thumbnails");
+        fs.mkdirSync(tempdir);
+        fs.mkdirSync(tempdatadir);
+        fs.mkdirSync(tempthumbdir);
+
+        yauzl.open(filename, {lazyEntries: true}, (err, zipfile)=>{
+            if (err)
+                throw err;
+            zipfile.readEntry();
+            zipfile.on("entry", function(entry) {
+                if (/\/$/.test(entry.fileName)) {
+                    // Directory file names end with '/'.
+                    zipfile.readEntry();
+                } else {
+                    // file entry
+                    zipfile.openReadStream(entry, (err, stream)=>{
+                        if (err) throw err;
+                        stream.on("end", function() { zipfile.readEntry(); });
+                        console.log("Write file '"+entry.fileName+"'")  
+                        let output = fs.createWriteStream(path.join(tempdir, entry.fileName));
+                        stream.pipe(output);
+                    });
+                }
+            });
+            zipfile.once("end", function() {
+                zipfile.close();
+                let ch = cheerio.load(fs.readFileSync(path.join(tempdir, "stack.xml"), 'utf8'), {
+                    xml: { normalizeWhitespace: true }
+                });
+                let image_struct = ch("image");
+                let w = image_struct.attr("w");
+                let h = image_struct.attr("h");
+                let result = new RasterImage(w, h);
+                let stack = ch("image").children("stack").first();
+                let tasks = [];
+                console.log(ch.xml())
+                let traverse = (stack, group) =>{
+                    stack.children("layer").each((i, raw_layer)=>{
+                        let new_layer = new RasterLayer(0, 0, w, h);
+                        let layer = ch(raw_layer);
+                        new_layer.compositor = layer.attr()["composite-op"];
+                        group.insert_layer(new_layer, 0);
+                        let img_src = path.join(tempdir, layer.attr().src);
+                        let top_node = gegl.node();
+                        let base = gegl.node(top_node, {operation: 'gegl:buffer-source', buffer: new_layer.buffer});
+                        let load = gegl.node(top_node, {operation: 'gegl:png-load', path: img_src});
+                        let translate = gegl.node(top_node, {
+                            operation: 'gegl:translate', 
+                            x: layer.attr().x, 
+                            y: layer.attr().y, 
+                            sampler:gegl.GEGL_SAMPLER_NEAREST
+                        });
+                        let over = gegl.node(top_node, {operation:'gegl:over', opacity: 1.0});
+                        let store = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: new_layer.buffer});
+                        console.log("translate:"+layer.attr().x+","+layer.attr().y);
+                        base.connect_to(over, store);
+                        load.output().connect_to(translate.input());
+                        translate.output().connect_to(over.aux());
+                        tasks.push(new Promise((resolve, reject)=>{
+                            store.process_async(()=>{
+                                top_node.dispose();
+                                let extent = gegl.gegl_buffer_get_extent(new_layer.buffer).deref();
+                                console.log(i+": extent:"+extent.x+","+extent.y+","+extent.width+","+extent.height)
+                                resolve();
+                            });
+                        }));
+                    });
+                    stack.children("stack").each((i, raw_sub_stack)=>{
+                        let sub_stack = ch(raw_sub_stack);
+                        let new_stack = new LayerGroup(0, 0, w, h);
+                        group.add_layer(new_stack);
+                        traverse(sub_stack, new_stack);
+                    });
+                };
+                traverse(stack, result);
+                Promise.all(tasks).then(()=>{
+                    rimraf(tempdir, (err)=>{});
+                    resolve(result);
+                });
+            });
+        });
+    });
+
 }

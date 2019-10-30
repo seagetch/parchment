@@ -30,7 +30,8 @@
     "ref-array-di": "^1.2.1",
     "ref-array-napi": "^1.2.0",
     "ref-struct-di": "^1.1.0",
-    "ref-struct-napi": "^1.1.0"
+    "ref-struct-napi": "^1.1.0",
+    "yauzl": "^2.10.0"
   },
   "devDependencies": {
     "@babel/core": "^7.6.4",

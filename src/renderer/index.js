@@ -376,6 +376,15 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     read_brushes();
     refresh_layers();
 
+    $("#file-load").on("click", () =>{
+        format_ora.load("test.ora").then((result)=>{
+            image.dispose();
+            image = result;
+            image.on('update', on_image_update);
+            refresh_layers();
+            image.update_all_async();
+        });
+    });
     $("#file-save").on("click", () =>{
         format_ora.save(image, "test.ora");
     });
