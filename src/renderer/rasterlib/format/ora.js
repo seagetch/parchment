@@ -167,20 +167,16 @@ export function load(filename) {
                         group.insert_layer(new_layer, 0);
                         let img_src = path.join(tempdir, layer.attr().src);
                         let top_node = gegl.node();
-                        let base = gegl.node(top_node, {operation: 'gegl:buffer-source', buffer: new_layer.buffer});
                         let load = gegl.node(top_node, {operation: 'gegl:png-load', path: img_src});
                         let translate = gegl.node(top_node, {
-                            operation: 'gegl:translate', 
-                            x: layer.attr().x, 
-                            y: layer.attr().y, 
-                            sampler:gegl.GEGL_SAMPLER_NEAREST
+                            'operation': 'gegl:translate', 
+                            'x': parseFloat(layer.attr().x), 
+                            'y': parseFloat(layer.attr().y), 
+                            'sampler': gegl.GEGL_SAMPLER_NEAREST
                         });
-                        let over = gegl.node(top_node, {operation:'gegl:over', opacity: 1.0});
                         let store = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: new_layer.buffer});
                         console.log("translate:"+layer.attr().x+","+layer.attr().y);
-                        base.connect_to(over, store);
-                        load.output().connect_to(translate.input());
-                        translate.output().connect_to(over.aux());
+                        load.connect_to(translate, store);
                         tasks.push(new Promise((resolve, reject)=>{
                             store.process_async(()=>{
                                 top_node.dispose();
