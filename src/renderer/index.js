@@ -222,11 +222,34 @@ function tablet_motion(tablet) {
         }
         painting = false;
     }
-}    
+}
+var total_dx = null;
+var total_dy = null;
+function swipe(event) {
+    switch (event.event_type) {
+        case 'begin':
+            total_dx = 0;
+            total_dy = 0;
+            console.log("swipe: start: "+total_dx+","+total_dy);
+            break;
+        case 'update':
+            total_dx += event.dx;
+            total_dy += event.dy;
+            break;
+        case 'end':
+            if (event.cancelled) {
+
+            } else {
+                console.log("swipe: total: "+total_dx+","+total_dy);
+            }
+            break;
+    };
+};
 
 function run_libinput(screen_size) {
     libinput.current_bounds = screen_size;
-    libinput.on("tablet", tablet_motion)
+    libinput.on("tablet", tablet_motion);
+    libinput.on("swipe", swipe)
     libinput.watch();
 }
 

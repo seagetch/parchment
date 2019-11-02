@@ -9,10 +9,41 @@ import lib_config from '../resources/lib_config'
 
 class LibInput {
     constructor() {
-        this.LIBINPUT_EVENT_TABLET_TOOL_AXIS = 600;
+        this.LIBINPUT_EVENT_NONE = 0;
+        this.LIBINPUT_EVENT_DEVICE_ADDED = 1;
+        this.LIBINPUT_EVENT_DEVICE_REMOVED = 2;
+    
+        this.LIBINPUT_EVENT_KEYBOARD_KEY = 300;
+    
+        this.LIBINPUT_EVENT_POINTER_MOTION          = 400;
+        this.LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE = 401;
+        this.LIBINPUT_EVENT_POINTER_BUTTON          = 402;
+        this.LIBINPUT_EVENT_POINTER_AXIS            = 403;
+    
+        this.LIBINPUT_EVENT_TOUCH_DOWN   = 500;
+        this.LIBINPUT_EVENT_TOUCH_UP     = 501;
+        this.LIBINPUT_EVENT_TOUCH_MOTION = 502;
+        this.LIBINPUT_EVENT_TOUCH_CANCEL = 503;
+        this.LIBINPUT_EVENT_TOUCH_FRAME  = 504;
+    
+        this.LIBINPUT_EVENT_TABLET_TOOL_AXIS      = 600;
         this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY = 601;
-        this.LIBINPUT_EVENT_TABLET_TOOL_TIP = 602;
-        this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON = 603;
+        this.LIBINPUT_EVENT_TABLET_TOOL_TIP       = 602;
+        this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON    = 603;
+
+        this.LIBINPUT_EVENT_TABLET_PAD_BUTTON = 700;
+        this.LIBINPUT_EVENT_TABLET_PAD_RING   = 701;
+
+        this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN  = 800;
+        this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE = 801;
+        this.LIBINPUT_EVENT_GESTURE_SWIPE_END    = 802;
+
+        this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN  = 803;
+        this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE = 804;
+        this.LIBINPUT_EVENT_GESTURE_PINCH_END    = 805;
+
+        this.LIBINPUT_EVENT_SWITCH_TOGGLE = 900;
+    
 
         this.libinput_interface = Struct({
             'open_restricted': ffi.Function('int', ['string', 'int', 'pointer']),
@@ -52,7 +83,19 @@ class LibInput {
             'libinput_event_tablet_tool_get_rotation': ['double', ['pointer']],
             'libinput_event_tablet_tool_get_x_transformed': ['double',['pointer', ref.types.uint32]],
             'libinput_event_tablet_tool_get_y_transformed': ['double',['pointer', ref.types.uint32]],
-            'libinput_event_tablet_tool_get_time': ['uint32', ['pointer']]
+            'libinput_event_tablet_tool_get_time': ['uint32', ['pointer']],
+            'libinput_event_tablet_tool_get_tool':['pointer', ['pointer']],
+            'libinput_tablet_tool_get_type': ['uint64', ['pointer']],
+            'libinput_event_gesture_get_angle_delta':['double',['pointer']],
+            'libinput_event_gesture_get_cancelled':['int',['pointer']],
+            'libinput_event_gesture_get_dx': ['double', ['pointer']],
+            'libinput_event_gesture_get_dx_unaccelerated': ['double', ['pointer']],
+            'libinput_event_gesture_get_dy': ['double', ['pointer']],
+            'libinput_event_gesture_get_dy_unaccelerated': ['double', ['pointer']],
+            'libinput_event_gesture_get_finger_count': ['int', ['pointer']],
+            'libinput_event_gesture_get_scale':['double', ['pointer']],
+            'libinput_event_gesture_get_time': ['uint32', ['pointer']],
+            'libinput_event_gesture_get_time_usec':['uint64', ['pointer']],
         }));
 
         this.init();
@@ -106,6 +149,62 @@ class LibInput {
         var fd = this.libinput_get_fd(this.li);
         this.libinput_dispatch(this.li);
         var i = 0;
+        let tablet_motion_handler = (type, event) =>{
+            let ev_tablet = {
+                x: this.current_bounds? this.libinput_event_tablet_tool_get_x_transformed(event, this.current_bounds.width ) + this.current_bounds.x: -1,
+                y: this.current_bounds? this.libinput_event_tablet_tool_get_y_transformed(event, this.current_bounds.height) + this.current_bounds.y: -1,
+                pressure: this.libinput_event_tablet_tool_get_pressure(event),
+                tilt_x: this.libinput_event_tablet_tool_get_tilt_x(event),
+                tilt_y: this.libinput_event_tablet_tool_get_tilt_y(event),
+                rotation: this.libinput_event_tablet_tool_get_rotation(event),
+                tool_type: this.libinput_tablet_tool_get_type(this.libinput_event_tablet_tool_get_tool(event)),
+                time: this.libinput_event_tablet_tool_get_time(event),
+                event_type: type
+            }
+            this.events.emit("tablet", ev_tablet);
+        }
+        let tablet_button_handler = (event) => {
+            let ev_tablet = {
+                x: this.current_bounds? this.libinput_event_tablet_tool_get_x_transformed(event, this.current_bounds.width ) + this.current_bounds.x: -1,
+                y: this.current_bounds? this.libinput_event_tablet_tool_get_y_transformed(event, this.current_bounds.height) + this.current_bounds.y: -1,
+                button: this.libinput_event_tablet_tool_get_button(event),
+                time: this.libinput_event_tablet_tool_get_time(event),
+                event_type: "button"
+            }
+            this.events.emit("tablet", ev_tablet);
+        }
+        let gesture_pinch_handler = (type, event) => {
+            let ev_gesture = {
+                finger_count: this.libinput_event_gesture_get_finger_count(event),
+                dx:    this.libinput_event_gesture_get_dx(event),
+                dy:    this.libinput_event_gesture_get_dy(event),
+                dx2:   this.libinput_event_gesture_get_dx_unaccelerated(event),
+                dy2:   this.libinput_event_gesture_get_dy_unaccelerated(event),
+                scale: this.libinput_event_gesture_get_scale(event),
+                angle: this.libinput_event_gesture_get_angle_delta(event),
+                time:  this.libinput_event_gesture_get_time(event),
+                event_type: type
+            }
+            if (type === 'end') {
+                ev_gesture.cancelled = this.libinput_event_gesture_get_cancelled(event);
+            }
+            this.events.emit("pinch", ev_gesture);
+        };
+        let gesture_swipe_handler = (type, event) => {
+            let ev_gesture = {
+                finger_count: this.libinput_event_gesture_get_finger_count(event),
+                dx:   this.libinput_event_gesture_get_dx(event),
+                dy:   this.libinput_event_gesture_get_dy(event),
+                dx2:  this.libinput_event_gesture_get_dx_unaccelerated(event),
+                dy2:  this.libinput_event_gesture_get_dy_unaccelerated(event),
+                time: this.libinput_event_gesture_get_time(event),
+                event_type: type
+            }
+            if (type === 'end') {
+                ev_gesture.cancelled = this.libinput_event_gesture_get_cancelled(event);
+            }
+            this.events.emit("swipe", ev_gesture);
+        };
         var poller = new epoll((err, fd, events) => {
             while (true) {
                 this.libinput_dispatch(this.li);
@@ -117,21 +216,16 @@ class LibInput {
                     continue;
                 // handle the event here
                 switch (event_type) {
-                case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:
-                case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY:
-                case this.LIBINPUT_EVENT_TABLET_TOOL_TIP: {
-                    let ev_tablet = {
-                        x: this.current_bounds? this.libinput_event_tablet_tool_get_x_transformed(event, this.current_bounds.width ) + this.current_bounds.x: -1,
-                        y: this.current_bounds? this.libinput_event_tablet_tool_get_y_transformed(event, this.current_bounds.height) + this.current_bounds.y: -1,
-                        pressure: this.libinput_event_tablet_tool_get_pressure(event),
-                        tilt_x: this.libinput_event_tablet_tool_get_tilt_x(event),
-                        tilt_y: this.libinput_event_tablet_tool_get_tilt_y(event),
-                        rotation: this.libinput_event_tablet_tool_get_rotation(event),
-                        time: this.libinput_event_tablet_tool_get_time(event)
-                    }
-                    this.events.emit("tablet", ev_tablet);
-                } break;
-                case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:
+                case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:      tablet_motion_handler("axis", event); break;
+                case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY: tablet_motion_handler("proximity", event); break;
+                case this.LIBINPUT_EVENT_TABLET_TOOL_TIP:       tablet_motion_handler("tip", event); break;
+                case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:    tablet_button_handler(event); break;
+                case this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:   gesture_swipe_handler("begin", event); break;
+                case this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:  gesture_swipe_handler("update", event); break;
+                case this.LIBINPUT_EVENT_GESTURE_SWIPE_END:     gesture_swipe_handler("end", event); break;        
+                case this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:   gesture_pinch_handler("begin", event); break;
+                case this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:  gesture_pinch_handler("update", event); break;
+                case this.LIBINPUT_EVENT_GESTURE_PINCH_END:     gesture_pinch_handler("end", event); break;
                 case 0:
                     break;
                 default:
