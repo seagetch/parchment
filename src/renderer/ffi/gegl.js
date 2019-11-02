@@ -120,85 +120,104 @@ export class Node {
 };
 export class Gegl {
     constructor(lib_config) {
-        this.GeglBuffer = ref.types.void;
-        this.PGeglBuffer = ref.refType(this.GeglBuffer);
-        this.GeglNode = ref.types.void;
-        this.PGeglNode = ref.refType(this.GeglNode);
-        this.GeglPath = ref.types.void;
-        this.PGeglPath = ref.refType(this.GeglPath);
-        this.GObject = ref.types.void;
-        this.PGObject = ref.refType(this.GObject);
-        this.GeglProcessor = ref.types.void;
-        this.PGeglProcessor = ref.refType(this.GeglProcessor);
-        this.GeglRectangle = Struct({'x': 'int', 'y':'int', 'width':'int', 'height':'int'});
-        this.PGeglRectangle = ref.refType(this.GeglRectangle);
-        this.Babl = ref.types.void;
-        this.PBabl = ref.refType(this.Babl);
+        let gegl = this;
 
-        this.GEGL_ABYSS_NONE  = BigInt(0);
-        this.GEGL_ABYSS_CLAMP = BigInt(1);
-        this.GEGL_ABYSS_LOOP  = BigInt(2);
-        this.GEGL_ABYSS_BLACK = BigInt(3);
-        this.GEGL_ABYSS_WHITE = BigInt(4);
+        gegl.GeglBuffer = ref.types.void;
+        gegl.PGeglBuffer = ref.refType(gegl.GeglBuffer);
+        gegl.GeglNode = ref.types.void;
+        gegl.PGeglNode = ref.refType(gegl.GeglNode);
+        gegl.GeglPath = ref.types.void;
+        gegl.PGeglPath = ref.refType(gegl.GeglPath);
+        gegl.GObject = ref.types.void;
+        gegl.PGObject = ref.refType(gegl.GObject);
+        gegl.GeglProcessor = ref.types.void;
+        gegl.PGeglProcessor = ref.refType(gegl.GeglProcessor);
+        gegl.GeglRectangle = Struct({'x': 'int', 'y':'int', 'width':'int', 'height':'int'});
+        gegl.PGeglRectangle = ref.refType(gegl.GeglRectangle);
+        gegl.Babl = ref.types.void;
+        gegl.PBabl = ref.refType(gegl.Babl);
+        gegl.GeglColor = ref.types.void;
+        gegl.PGeglColor = ref.refType(gegl.GeglColor);
 
-        this.GEGL_ACCESS_READ      = BigInt(1 << 0);
-        this.GEGL_ACCESS_WRITE     = BigInt(1 << 1);
-        this.GEGL_ACCESS_READWRITE = BigInt(this.GEGL_ACCESS_READ | this.GEGL_ACCESS_WRITE);
+        gegl.GEGL_ABYSS_NONE  = BigInt(0);
+        gegl.GEGL_ABYSS_CLAMP = BigInt(1);
+        gegl.GEGL_ABYSS_LOOP  = BigInt(2);
+        gegl.GEGL_ABYSS_BLACK = BigInt(3);
+        gegl.GEGL_ABYSS_WHITE = BigInt(4);
 
-        this.GEGL_ORIENTATION_HORIZONTAL = BigInt(0);
-        this.GEGL_ORIENTATION_VERTICAL   = BigInt(1);
+        gegl.GEGL_ACCESS_READ      = BigInt(1 << 0);
+        gegl.GEGL_ACCESS_WRITE     = BigInt(1 << 1);
+        gegl.GEGL_ACCESS_READWRITE = BigInt(gegl.GEGL_ACCESS_READ | gegl.GEGL_ACCESS_WRITE);
 
-        this.GEGL_DITHER_NONE                     = BigInt(0);
-        this.GEGL_DITHER_FLOYD_STEINBERG          = BigInt(1);
-        this.GEGL_DITHER_BAYER                    = BigInt(2);
-        this.GEGL_DITHER_RANDOM                   = BigInt(3);
-        this.GEGL_DITHER_RANDOM_COVARIANT         = BigInt(4);
-        this.GEGL_DITHER_ARITHMETIC_ADD           = BigInt(5);
-        this.GEGL_DITHER_ARITHMETIC_ADD_COVARIANT = BigInt(6);
-        this.GEGL_DITHER_ARITHMETIC_XOR           = BigInt(7);
-        this.GEGL_DITHER_ARITHMETIC_XOR_COVARIANT = BigInt(8);
+        gegl.GEGL_ORIENTATION_HORIZONTAL = BigInt(0);
+        gegl.GEGL_ORIENTATION_VERTICAL   = BigInt(1);
 
-        this.GEGL_SAMPLER_NEAREST = BigInt(0);
-        this.GEGL_SAMPLER_LINEAR  = BigInt(1);
-        this.GEGL_SAMPLER_CUBIC   = BigInt(2);
-        this.GEGL_SAMPLER_NOHALO  = BigInt(3);
-        this.GEGL_SAMPLER_LOHALO  = BigInt(4);
+        gegl.GEGL_DITHER_NONE                     = BigInt(0);
+        gegl.GEGL_DITHER_FLOYD_STEINBERG          = BigInt(1);
+        gegl.GEGL_DITHER_BAYER                    = BigInt(2);
+        gegl.GEGL_DITHER_RANDOM                   = BigInt(3);
+        gegl.GEGL_DITHER_RANDOM_COVARIANT         = BigInt(4);
+        gegl.GEGL_DITHER_ARITHMETIC_ADD           = BigInt(5);
+        gegl.GEGL_DITHER_ARITHMETIC_ADD_COVARIANT = BigInt(6);
+        gegl.GEGL_DITHER_ARITHMETIC_XOR           = BigInt(7);
+        gegl.GEGL_DITHER_ARITHMETIC_XOR_COVARIANT = BigInt(8);
 
-        this.GEGL_AUTO_ROWSTRIDE = BigInt(0);
+        gegl.GEGL_SAMPLER_NEAREST = BigInt(0);
+        gegl.GEGL_SAMPLER_LINEAR  = BigInt(1);
+        gegl.GEGL_SAMPLER_CUBIC   = BigInt(2);
+        gegl.GEGL_SAMPLER_NOHALO  = BigInt(3);
+        gegl.GEGL_SAMPLER_LOHALO  = BigInt(4);
 
-        this.GEGL_BLIT_DEFAULT  = BigInt(0);
-        this.GEGL_BLIT_CACHE    = BigInt(1 << 0);
-        this.GEGL_BLIT_DIRTY    = BigInt(1 << 1);
+        gegl.GEGL_AUTO_ROWSTRIDE = BigInt(0);
+
+        gegl.GEGL_BLIT_DEFAULT  = BigInt(0);
+        gegl.GEGL_BLIT_CACHE    = BigInt(1 << 0);
+        gegl.GEGL_BLIT_DIRTY    = BigInt(1 << 1);
 
         const strings = ArrayType('string');
         // FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
-        Object.assign(this, ffi.Library(lib_config['libbabl'], {
-            'babl_init': [this.PBabl, ['string']],
-            'babl_format': [this.PBabl, ['string']]
+        Object.assign(gegl, ffi.Library(lib_config['libbabl'], {
+            'babl_init': [gegl.PBabl, ['string']],
+            'babl_format': [gegl.PBabl, ['string']]
         }));
-        Object.assign(this, ffi.Library(lib_config['libgegl'], {
+        Object.assign(gegl, ffi.Library(lib_config['libgegl'], {
             'gegl_init': ["void", ['int *', strings]],
-            'gegl_node_new': [this.PGeglNode, []],
-            'gegl_node_new_child':[this.PGeglNode,[this.PGeglNode, 'string'], {varargs: true}],
-            'gegl_node_link_many':['void',[this.PGeglNode, this.PGeglNode], {varargs: true}],
-            'gegl_node_connect_to':['bool',[this.PGeglNode, 'string', this.PGeglNode, 'string']],
-            'gegl_path_new':[this.PGeglPath,[]],
-            'gegl_path_append':['void',[this.PGeglPath], {varargs: true}],
-            'gegl_path_get_bounds':['void',[this.PGeglPath, 'double *', 'double *', 'double *', 'double *']],
-            'gegl_node_new_processor':[this.PGeglProcessor,[this.PGeglNode, this.PGeglRectangle]],
-            'gegl_processor_work':['bool',[this.PGeglProcessor, 'double *']],
-            'gegl_buffer_new':[this.PGeglBuffer,[this.PGeglRectangle, this.PBabl]],
-            'gegl_buffer_linear_open':['pointer',[this.PGeglBuffer, this.PGeglRectangle, 'int *', this.PBabl]],
-            'gegl_buffer_linear_close':['void',[this.PGeglBuffer, 'pointer']],
-            'gegl_buffer_get_extent':[this.PGeglRectangle, [this.PGeglBuffer]],
+            'gegl_node_new': [gegl.PGeglNode, []],
+            'gegl_node_new_child':[gegl.PGeglNode,[gegl.PGeglNode, 'string'], {varargs: true}],
+            'gegl_node_link_many':['void',[gegl.PGeglNode, gegl.PGeglNode], {varargs: true}],
+            'gegl_node_connect_to':['bool',[gegl.PGeglNode, 'string', gegl.PGeglNode, 'string']],
+            'gegl_path_new':[gegl.PGeglPath,[]],
+            'gegl_path_append':['void',[gegl.PGeglPath], {varargs: true}],
+            'gegl_path_get_bounds':['void',[gegl.PGeglPath, 'double *', 'double *', 'double *', 'double *']],
+            'gegl_node_new_processor':[gegl.PGeglProcessor,[gegl.PGeglNode, gegl.PGeglRectangle]],
+            'gegl_processor_work':['bool',[gegl.PGeglProcessor, 'double *']],
+            'gegl_buffer_new':[gegl.PGeglBuffer,[gegl.PGeglRectangle, gegl.PBabl]],
+            'gegl_buffer_linear_open':['pointer',[gegl.PGeglBuffer, gegl.PGeglRectangle, 'int *', gegl.PBabl]],
+            'gegl_buffer_linear_close':['void',[gegl.PGeglBuffer, 'pointer']],
+            'gegl_buffer_get_extent':[gegl.PGeglRectangle, [gegl.PGeglBuffer]],
+            'gegl_buffer_get_abyss':[gegl.PGeglRectangle, [gegl.PGeglBuffer]],
+            'gegl_buffer_set_extent':['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
+            'gegl_buffer_set_abyss': ['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
             'gegl_color_new': ['pointer', ['string']],
-            'gegl_node_process': ['void', [this.PGeglNode]],
-            'gegl_node_blit': ['void', [this.PGeglNode, 'double', this.PGeglRectangle, this.PBabl, 'pointer', 'int', 'int']]
+            'gegl_node_process': ['void', [gegl.PGeglNode]],
+            'gegl_node_blit': ['void', [gegl.PGeglNode, 'double', gegl.PGeglRectangle, gegl.PBabl, 'pointer', 'int', 'int']],
+            'gegl_color_new': [gegl.PGeglColor, ['string']],
+            'gegl_rectangle_bounding_box': ['void', [gegl.PGeglRectangle, gegl.PGeglRectangle, gegl.PGeglRectangle]],
+            'gegl_rectangle_intersect': ['void', [gegl.PGeglRectangle, gegl.PGeglRectangle, gegl.PGeglRectangle]],
         }));
-        Object.assign(this, ffi.Library(lib_config['libgobject'], {
+        Object.assign(gegl, ffi.Library(lib_config['libgobject'], {
             'g_object_unref': ['void',['pointer']],
         //    'g_signal_connect': [,['pointer']],
         }));
+
+        gegl.GeglRectangle.prototype.combine_with = function(r) {
+            gegl.gegl_rectangle_bounding_box(this.ref(), this.ref(), r.ref());
+            return this;
+        }
+        gegl.GeglRectangle.prototype.intersect_with = function(r) {
+            gegl.gegl_rectangle_intersect(this.ref(), this.ref(), r.ref());
+            return this;
+        }
     };
 
     init() {

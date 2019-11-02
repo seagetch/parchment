@@ -46,7 +46,7 @@ export function save(image, filename) {
                 let extent = gegl.gegl_buffer_get_extent(layer.buffer).deref();
                 console.log("extent:"+extent.x+","+extent.y+","+extent.width+","+extent.height)
                 ch("<layer>").attr({
-                    name: layer_name, x: extent.x - layer.x, y: extent.y - layer.y, src: "data/"+layer_name+".png", opacity: 1.0, "composite-op": layer.compositor
+                    name: layer_name, x: extent.x - (layer.x? layer.x:0), y: extent.y - (layer.y? layer.y:0), src: "data/"+layer_name+".png", opacity: 1.0, "composite-op": layer.compositor
                 }).appendTo(current_stack);
                 
                 await new Promise((resolve, reject) =>{
@@ -161,7 +161,7 @@ export function load(filename) {
                 console.log(ch.xml())
                 let traverse = (stack, group) =>{
                     stack.children("layer").each((i, raw_layer)=>{
-                        let new_layer = new RasterLayer(0, 0, w, h);
+                        let new_layer = new RasterLayer(0, 0, -1, -1);
                         let layer = ch(raw_layer);
                         new_layer.compositor = layer.attr()["composite-op"];
                         group.insert_layer(new_layer, 0);

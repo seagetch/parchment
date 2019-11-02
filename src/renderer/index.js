@@ -54,13 +54,20 @@ function run_rasterlib(bounds) {
     image = new RasterImage(bounds.width, bounds.height);
     image.on('update', on_image_update);
     let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
-    image.add_layer(base_layer);
-    base_layer.lock(gegl.babl_format("Y' u8"), null, (buffer, stride) => {
-        var buf2 = ref.reinterpret(buffer, bounds.width*bounds.height, 0);
-        buf2.type = ref.types.uint8;
-        buf2.fill(255);
+    let lrect = new gegl.GeglRectangle();
+    lrect.x = 0;
+    lrect.y = 0;
+    lrect.width = bounds.width;
+    lrect.height = bounds.height;
+    gegl.gegl_buffer_set_extent(base_layer.buffer, lrect.ref());
+    gegl.with_node((top_node)=>{
+        let rect  = gegl.node(top_node, {operation: 'gegl:rectangle', x: 0, y:0, width: bounds.width, height: bounds.height, color: gegl.gegl_color_new("rgb(1, 1, 1)")});
+        let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: base_layer.buffer});
+        rect.output().connect_to(write.input());
+        write.process();
     });
-    let layer = new RasterLayer(0, 0, bounds.width, bounds.height);
+    image.add_layer(base_layer);
+    let layer = new RasterLayer(0, 0, -1, -1);
     image.add_layer(layer);
     image.select_layer(1);
 
@@ -117,16 +124,23 @@ function run_gegl() {
 
 var brush;
 var gegl_surface;
+var surface_extent;
 var surface;
 var color_fg = [  0,   0,   0];
 var color_bg = [  0,   0,   1];
 
-function run_mypaint() {
-    brush = new MypaintBrush(mypaint.mypaint_brush_new());
-    mypaint.mypaint_brush_from_defaults(brush.brush);
+function update_current_layer(current_layer) {
+    if (gegl_surface)
+        mypaint.mypaint_surface_unref(gegl_surface);
     gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
     mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
     surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
+}
+
+function run_mypaint() {
+    brush = new MypaintBrush(mypaint.mypaint_brush_new());
+    mypaint.mypaint_brush_from_defaults(brush.brush);
+    update_current_layer(image.current_layer);
 }
 
 var grabbed  = false;
@@ -153,6 +167,12 @@ function tablet_motion(ev, tablet) {
             mypaint.mypaint_brush_new_stroke(brush.brush);
             min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
             undo = new LayerBufferUndo(image, image.current_layer);
+            surface_extent = new gegl.GeglRectangle();
+            let current_extent = gegl.gegl_buffer_get_extent(image.current_layer.buffer).deref();
+            surface_extent.x = current_extent.x;
+            surface_extent.y = current_extent.y;
+            surface_extent.width = current_extent.width;
+            surface_extent.height = current_extent.height;
             undo.start();
             ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
                 $(i).css({opacity: 0.3})
@@ -187,6 +207,8 @@ function tablet_motion(ev, tablet) {
             console.log("release"); // release event
             mypaint.mypaint_brush_reset(brush.brush);
             let bounds = new mypaint.MyPaintRectangle();
+            surface_extent.combine_with(gegl.gegl_buffer_get_extent(image.current_layer.buffer).deref());
+            gegl.gegl_buffer_set_extent(image.current_layer.buffer, surface_extent.ref());
             bounds.x = min_x;
             bounds.y = min_y;
             bounds.width = max_x - min_x;
@@ -284,7 +306,8 @@ function refresh_layers() {
         item.on("click", (ev)=>{
             console.log("Select layer")
             image.select_layer(i);
-            mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
+            update_current_layer(image.current_layer);
+        
             refresh_layers();
         }).on("mouseenter", (ev)=>{
             delete_btn.show();
@@ -303,7 +326,7 @@ function refresh_layers() {
                 image.undos.push(new layerundo.RemoveLayerUndo(layer, image, index));
                 refresh_layers();
                 if (update_current_layer) {
-                    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
+                    update_current_layer(image.current_layer);
                 }
             }
             image.update_all_async();
@@ -439,7 +462,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     $('#add-layer').on("click", () => {
         let index = image.layers.indexOf(image.current_layer) + 1;
-        let layer = new RasterLayer(0, 0, image.width, image.height);
+        let layer = new RasterLayer(0, 0, -1, -1);
         image.insert_layer(layer, index);
         image.undos.push(new layerundo.InsertLayerUndo(layer, image, index));
         refresh_layers();
