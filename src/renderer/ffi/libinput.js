@@ -3,6 +3,7 @@ const ffi = require('ffi-napi');
 const ref = require('ref-napi');
 const Struct = require('ref-struct-di')(ref);
 const epoll = require('epoll').Epoll;
+const EventEmitter = require("events");
 
 import lib_config from '../resources/lib_config'
 
@@ -42,6 +43,7 @@ class LibInput {
             'libinput_suspend': ['void', [this.Plibinput_t]],
             'libinput_resume': ['int', [this.Plibinput_t]],
             'libinput_unref':['void', [this.Plibinput_t]],
+            'libinput_event_tablet_tool_get_button':['int',['pointer']],
             'libinput_event_tablet_tool_get_x': ['double', ['pointer']],
             'libinput_event_tablet_tool_get_y': ['double', ['pointer']],
             'libinput_event_tablet_tool_get_pressure': ['double', ['pointer']],
@@ -57,6 +59,7 @@ class LibInput {
     }
 
     init() {
+        this.events = new EventEmitter();
         var open_callback = function(path, flag, user_data) {
             var fd = fs.openSync(path, flag, 0o400);
             return fd < 0 ? -1 : fd;
@@ -69,7 +72,7 @@ class LibInput {
         libinput_interface.open_restricted  = open_callback;
         libinput_interface.close_restricted = close_callback;
         this.li = this.libinput_udev_create_context(libinput_interface.ref(), null, this.udev);
-        this.libinput_udev_assign_seat(this.li, "seat0");                
+        this.libinput_udev_assign_seat(this.li, "seat0");
     }
 
     dispose() {
@@ -99,7 +102,7 @@ class LibInput {
 //        }
     }
 
-    watch(callback) {
+    watch() {
         var fd = this.libinput_get_fd(this.li);
         this.libinput_dispatch(this.li);
         var i = 0;
@@ -126,7 +129,7 @@ class LibInput {
                         rotation: this.libinput_event_tablet_tool_get_rotation(event),
                         time: this.libinput_event_tablet_tool_get_time(event)
                     }
-                    callback("tablet", ev_tablet);
+                    this.events.emit("tablet", ev_tablet);
                 } break;
                 case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:
                 case 0:
@@ -142,6 +145,13 @@ class LibInput {
         poller.add(fd, epoll.EPOLLIN);
     }
 };
+
+['addListener', 'prependListener', 'prependOnceListner', 'removeListener', 'removeAllListeners', 'on', 'off', 'once'].forEach((name, i)=>{
+    LibInput.prototype[name] = function(...args) {
+        return this.events[name](...args);
+    }
+})
+
 
 let libinput = new LibInput();
 export default libinput;

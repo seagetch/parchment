@@ -12,9 +12,6 @@ export default class LayerGroup extends RasterLayer {
         this.visible = true;
         this.events = new EventEmitter();
     }
-    on(ev, callback) {
-        this.events.on(ev, callback);
-    }
     dispose() {
         for (let i = 0; i < this.layers.length; i ++)
             this.layers[i].dispose();
@@ -58,7 +55,7 @@ export default class LayerGroup extends RasterLayer {
             layer = null;
         }
         if (layer == this._current_layer) {
-            this._current_layer = (i < this.layers.length)? this.layers[i]: this.layers[this.layers.length - 1];
+            this.select_layer(i < this.layers.length? i: this.layers.length - 1);
         }
         if (layer)
             this.validate();
@@ -170,6 +167,11 @@ export default class LayerGroup extends RasterLayer {
         if (index < this.layers.length) {
             this._current_layer = this.layers[index];
         }
+        let group = this;
+        while (group) {
+            group.events.emit("layer-selected", group, this._current_layer);
+            group = group.parent;
+        }
         return this._current_layer;
     }
     current_layer() {
@@ -180,3 +182,9 @@ export default class LayerGroup extends RasterLayer {
         return result;
     }
 };
+
+['addListener', 'prependListener', 'prependOnceListner', 'removeListener', 'removeAllListeners', 'on', 'off', 'once'].forEach((name, i)=>{
+    LayerGroup.prototype[name] = function(...args) {
+        return this.events[name](...args);
+    }
+});

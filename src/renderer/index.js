@@ -22,12 +22,10 @@ import "bootstrap-colorpicker";
 import '@fortawesome/fontawesome-free/js/fontawesome';
 import '@fortawesome/fontawesome-free/js/solid';
 import '@fortawesome/fontawesome-free/js/regular';
-import { createPublicKey } from 'crypto';
 
 function on_image_update(image, x, y, w, h) {
     let canvas = $('#canvas')[0];
     let ctx = canvas.getContext("2d");
-    console.log("async_done")
     let rect2 = new gegl.GeglRectangle();
     rect2.x = x;
     rect2.y = y;
@@ -48,29 +46,33 @@ function on_image_update(image, x, y, w, h) {
     });
 };
 
-var image;
+var image = null;
 
-function run_rasterlib(bounds) {
+function create_new_image(bounds) {
+    if (image)
+        image.dispose();
     image = new RasterImage(bounds.width, bounds.height);
-    image.on('update', on_image_update);
     let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
     let lrect = new gegl.GeglRectangle();
     lrect.x = 0;
     lrect.y = 0;
     lrect.width = bounds.width;
     lrect.height = bounds.height;
-    gegl.gegl_buffer_set_extent(base_layer.buffer, lrect.ref());
     gegl.with_node((top_node)=>{
         let rect  = gegl.node(top_node, {operation: 'gegl:rectangle', x: 0, y:0, width: bounds.width, height: bounds.height, color: gegl.gegl_color_new("rgb(1, 1, 1)")});
         let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: base_layer.buffer});
         rect.output().connect_to(write.input());
+        gegl.gegl_buffer_set_extent(base_layer.buffer, write.bounding_box().ref());
         write.process();
     });
     image.add_layer(base_layer);
     let layer = new RasterLayer(0, 0, -1, -1);
     image.add_layer(layer);
-    image.select_layer(1);
 
+    image.on('update', on_image_update);
+    image.on('layer-selected', on_update_current_layer);
+
+    image.select_layer(1);
     image.update_all_async();
 }
 
@@ -114,12 +116,6 @@ var watch = new StopWatch(10);
 
 
 function run_gegl() {
-    var rect = new gegl.GeglRectangle();
-    rect.x = 0, rect.y = 0;
-    rect.width = $("#canvas")[0].width
-    rect.height = $("#canvas")[0].height
-    console.log("Create canvas of size "+rect.width + ","+rect.height)
-
 }
 
 var brush;
@@ -129,18 +125,19 @@ var surface;
 var color_fg = [  0,   0,   0];
 var color_bg = [  0,   0,   1];
 
-function update_current_layer(current_layer) {
-    if (gegl_surface)
+function on_update_current_layer(group, current_layer) {
+    if (gegl_surface) {
         mypaint.mypaint_surface_unref(gegl_surface);
+        mypaint.mypaint_surface_unref(surface);
+    }
     gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
     mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, current_layer.buffer);
     surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
 }
 
 function run_mypaint() {
-    brush = new MypaintBrush(mypaint.mypaint_brush_new());
-    mypaint.mypaint_brush_from_defaults(brush.brush);
-    update_current_layer(image.current_layer());
+//    brush = new MypaintBrush(mypaint.mypaint_brush_new());
+//    mypaint.mypaint_brush_from_defaults(brush.brush);
 }
 
 var grabbed  = false;
@@ -150,8 +147,8 @@ var min_x = null, min_y = null, max_x = null, max_y = null;
 let undo = null;
 var move_count = 0;
 
-function tablet_motion(ev, tablet) {
-    if (grabbed)
+function tablet_motion(tablet) {
+    if (grabbed || !image || !surface || !brush)
         return;
     let canvas = $("#canvas")[0];
     let client = canvas.getBoundingClientRect();
@@ -229,7 +226,8 @@ function tablet_motion(ev, tablet) {
 
 function run_libinput(screen_size) {
     libinput.current_bounds = screen_size;
-    libinput.watch(tablet_motion);
+    libinput.on("tablet", tablet_motion)
+    libinput.watch();
 }
 
 let brushes;
@@ -277,6 +275,8 @@ function read_brushes() {
     brushes = brush_loader(brush_path);
     for (let path in brushes) {
         brushes[path].brush = new MypaintBrush(brushes[path].brush);
+        if (!brush)
+            brush = brushes[path].brush;
     }
     refresh_brushes();
 }
@@ -305,9 +305,7 @@ function refresh_layers() {
 
         item.on("click", (ev)=>{
             console.log("Select layer")
-            image.select_layer(i);
-            update_current_layer(image.current_layer());
-        
+            image.select_layer(i);        
             refresh_layers();
         }).on("mouseenter", (ev)=>{
             delete_btn.show();
@@ -325,9 +323,6 @@ function refresh_layers() {
                 image.remove_layer(layer);
                 image.undos.push(new layerundo.RemoveLayerUndo(layer, image, index));
                 refresh_layers();
-                if (updated) {
-                    update_current_layer(image.current_layer());
-                }
             }
             image.update_all_async();
             return false
@@ -393,8 +388,8 @@ $(window).on("load", () =>{
 $(window).on("resize", resize_canvas);
 
 ipcRenderer.on("screen-size", (event, bounds) => {
-    run_rasterlib(bounds);
     run_mypaint();
+    create_new_image(bounds);
     run_libinput(bounds);
     read_brushes();
     refresh_layers();
@@ -404,6 +399,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
             image.dispose();
             image = result;
             image.on('update', on_image_update);
+            image.on('layer-selected', on_update_current_layer);
             refresh_layers();
             image.update_all_async();
         });
@@ -468,5 +464,10 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         group.insert_layer(layer, index);
         image.undos.push(new layerundo.InsertLayerUndo(layer, group, index));
         refresh_layers();
+    });
+
+    $('#new-file').on("click", ()=>{
+        // ToDo: required confirmation if image is modified.
+        create_new_image(bounds);
     });
 })

@@ -61,25 +61,12 @@ export default class RasterLayer {
     }
     clone_buffer() {
         return gegl.with_node((top_node) => {
-            /*
-            var rect = null;
-            if (this.width > 0 && this.height > 0) {
-                rect = new gegl.GeglRectangle();
-                rect.x = this.x;
-                rect.y = this.y;
-                rect.width = this.width;
-                rect.height = this.height;
-            }
-            */
             let buffer = gegl.gegl_buffer_new(null, this.format);
             let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
             let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer", buffer: buffer});
             gegl.gegl_buffer_set_extent(buffer, gegl.gegl_buffer_get_extent(this.buffer));
             in_node.output().connect_to(out_node.input());
             out_node.process();
-            let rect = gegl.gegl_buffer_get_extent(buffer).deref();
-            console.log("clone_buffer: rect="+rect.x+","+rect.y+","+rect.width+","+rect.height)
-
             return buffer;
         });
     }
@@ -102,10 +89,13 @@ export default class RasterLayer {
             if (this.width > this.height) {
                 thumb_x = size;
                 thumb_y = size * this.height / this.width;
-            } else {
+            } else if (this.width < this.height) {
                 thumb_y = size;
                 thumb_x = size * this.width / this.height;
-            }    
+            } else {
+                thumb_x = size;
+                thumb_y = size;
+            }
         } else {
             let ext = gegl.gegl_buffer_get_extent(this.buffer).deref();
             if (ext.width > ext.height) {
