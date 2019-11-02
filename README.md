@@ -22,7 +22,7 @@ Run following commands on terminal.
 git clone https://github.com/seagetch/parchment.git
 cd parchment
 npm install
-./node_modules/.bin/electron-rebuild
+npm run build-dep
 npm run build
 ```
 
@@ -37,11 +37,12 @@ Below is the examples of tested environment.
     "libgobject": "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0",
     "libmypaint": "/usr/local/lib/libmypaint-1.4.so.0",
     "libmypaint-gegl": "/usr/local/lib/libmypaint-gegl-1.4.so",
-    "libinput": "/usr/lib/x86_64-linux-gnu/libinput.so.10"
+    "libinput": "/usr/lib/x86_64-linux-gnu/libinput.so.10",
+    "libudev": "/lib/x86_64-linux-gnu/libudev.so.1"
 }
 ```
 
 ## Run
 ```
-npm start .
+npm run start
 ```
