@@ -133,14 +133,14 @@ function update_current_layer(current_layer) {
     if (gegl_surface)
         mypaint.mypaint_surface_unref(gegl_surface);
     gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
-    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, image.current_layer.buffer);
+    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, current_layer.buffer);
     surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
 }
 
 function run_mypaint() {
     brush = new MypaintBrush(mypaint.mypaint_brush_new());
     mypaint.mypaint_brush_from_defaults(brush.brush);
-    update_current_layer(image.current_layer);
+    update_current_layer(image.current_layer());
 }
 
 var grabbed  = false;
@@ -166,9 +166,9 @@ function tablet_motion(ev, tablet) {
             brush.base_value("color_v", color_fg[2]);
             mypaint.mypaint_brush_new_stroke(brush.brush);
             min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
-            undo = new LayerBufferUndo(image, image.current_layer);
+            undo = new LayerBufferUndo(image, image.current_layer());
             surface_extent = new gegl.GeglRectangle();
-            let current_extent = gegl.gegl_buffer_get_extent(image.current_layer.buffer).deref();
+            let current_extent = gegl.gegl_buffer_get_extent(image.current_layer().buffer).deref();
             surface_extent.x = current_extent.x;
             surface_extent.y = current_extent.y;
             surface_extent.width = current_extent.width;
@@ -207,8 +207,8 @@ function tablet_motion(ev, tablet) {
             console.log("release"); // release event
             mypaint.mypaint_brush_reset(brush.brush);
             let bounds = new mypaint.MyPaintRectangle();
-            surface_extent.combine_with(gegl.gegl_buffer_get_extent(image.current_layer.buffer).deref());
-            gegl.gegl_buffer_set_extent(image.current_layer.buffer, surface_extent.ref());
+            surface_extent.combine_with(gegl.gegl_buffer_get_extent(image.current_layer().buffer).deref());
+            gegl.gegl_buffer_set_extent(image.current_layer().buffer, surface_extent.ref());
             bounds.x = min_x;
             bounds.y = min_y;
             bounds.width = max_x - min_x;
@@ -291,7 +291,7 @@ function refresh_layers() {
         let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
         img[0].width  = thumb.width;
         img[0].height = thumb.height;
-        if (layer == image.current_layer)
+        if (layer == image.current_layer())
             item.addClass("border-primary");
 
         let delete_btn = $("<div>").addClass("text-white rounded-circle bg-danger").appendTo(item).css({
@@ -306,7 +306,7 @@ function refresh_layers() {
         item.on("click", (ev)=>{
             console.log("Select layer")
             image.select_layer(i);
-            update_current_layer(image.current_layer);
+            update_current_layer(image.current_layer());
         
             refresh_layers();
         }).on("mouseenter", (ev)=>{
@@ -319,14 +319,14 @@ function refresh_layers() {
 
         delete_btn.on("click", (ev)=>{
             console.log("remove layer "+layer)
-            let update_current_layer = (image.current_layer == layer);
+            let updated = (image.current_layer() == layer);
             let index = image.layers.indexOf(layer);
             if (index >= 0) {
                 image.remove_layer(layer);
                 image.undos.push(new layerundo.RemoveLayerUndo(layer, image, index));
                 refresh_layers();
-                if (update_current_layer) {
-                    update_current_layer(image.current_layer);
+                if (updated) {
+                    update_current_layer(image.current_layer());
                 }
             }
             image.update_all_async();
@@ -461,10 +461,12 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     });
 
     $('#add-layer').on("click", () => {
-        let index = image.layers.indexOf(image.current_layer) + 1;
+        let current_layer = image.current_layer();
+        let group = current_layer.parent;
+        let index = group.layers.indexOf(current_layer) + 1;
         let layer = new RasterLayer(0, 0, -1, -1);
-        image.insert_layer(layer, index);
-        image.undos.push(new layerundo.InsertLayerUndo(layer, image, index));
+        group.insert_layer(layer, index);
+        image.undos.push(new layerundo.InsertLayerUndo(layer, group, index));
         refresh_layers();
     });
 })

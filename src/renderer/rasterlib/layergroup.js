@@ -57,8 +57,8 @@ export default class LayerGroup extends RasterLayer {
             console.log("remove_layer: tried to remove unknown layer");
             layer = null;
         }
-        if (layer == this.current_layer) {
-            this.current_layer = (i < this.layers.length)? this.layers[i]: this.layers[this.layers.length - 1];
+        if (layer == this._current_layer) {
+            this._current_layer = (i < this.layers.length)? this.layers[i]: this.layers[this.layers.length - 1];
         }
         if (layer)
             this.validate();
@@ -168,8 +168,15 @@ export default class LayerGroup extends RasterLayer {
     }
     select_layer(index) {
         if (index < this.layers.length) {
-            this.current_layer = this.layers[index];
+            this._current_layer = this.layers[index];
         }
-        return this.current_layer;
+        return this._current_layer;
+    }
+    current_layer() {
+        let result = this._current_layer;
+        while (result instanceof LayerGroup) {
+            result = result._current_layer;
+        }
+        return result;
     }
 };

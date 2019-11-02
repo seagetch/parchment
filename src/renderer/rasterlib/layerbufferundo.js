@@ -20,9 +20,13 @@ export default class LayerBufferUndo {
     }
     undo() {
         if (this.undo_buffer) {
+            let rect = gegl.gegl_buffer_get_extent(this.undo_buffer).deref();
+            console.log("undo: rect="+rect.x+","+rect.y+","+rect.width+","+rect.height)
             this.redo_buffer = this.layer.clone_buffer();
             this.layer.copy_from_buffer(this.undo_buffer);
             return this.bounds;
+        } else {
+            console.log("No undo buffer");
         }
         return null;
     }

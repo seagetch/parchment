@@ -61,25 +61,39 @@ export default class RasterLayer {
     }
     clone_buffer() {
         return gegl.with_node((top_node) => {
-            var rect = new gegl.GeglRectangle();
-            rect.x = this.x;
-            rect.y = this.y;
-            rect.width = this.width;
-            rect.height = this.height;
-            let buffer = gegl.gegl_buffer_new(rect.ref(), this.format);
+            /*
+            var rect = null;
+            if (this.width > 0 && this.height > 0) {
+                rect = new gegl.GeglRectangle();
+                rect.x = this.x;
+                rect.y = this.y;
+                rect.width = this.width;
+                rect.height = this.height;
+            }
+            */
+            let buffer = gegl.gegl_buffer_new(null, this.format);
             let in_node = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: this.buffer});
             let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer", buffer: buffer});
+            gegl.gegl_buffer_set_extent(buffer, gegl.gegl_buffer_get_extent(this.buffer));
             in_node.output().connect_to(out_node.input());
             out_node.process();
+            let rect = gegl.gegl_buffer_get_extent(buffer).deref();
+            console.log("clone_buffer: rect="+rect.x+","+rect.y+","+rect.width+","+rect.height)
+
             return buffer;
         });
     }
     copy_from_buffer(buffer) {
         gegl.with_node((top_node) => {
+            let current_bounds = gegl.gegl_buffer_get_extent(this.buffer);
+            gegl.gegl_buffer_clear(this.buffer, current_bounds);
             let in_node  = gegl.node(top_node, {operation: "gegl:buffer-source", buffer: buffer});
             let out_node = gegl.node(top_node, {operation: "gegl:copy-buffer",   buffer: this.buffer});
             in_node.output().connect_to(out_node.input());
+            gegl.gegl_buffer_set_extent(this.buffer, gegl.gegl_buffer_get_extent(buffer));
             out_node.process();
+            let rect = gegl.gegl_buffer_get_extent(buffer).deref();
+            console.log("copy_from_buffer: rect="+rect.x+","+rect.y+","+rect.width+","+rect.height)
         });
     }
     thumbnail(size) {
