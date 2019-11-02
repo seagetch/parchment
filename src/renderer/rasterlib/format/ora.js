@@ -177,6 +177,8 @@ export function load(filename) {
                         let store = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: new_layer.buffer});
                         console.log("translate:"+layer.attr().x+","+layer.attr().y);
                         load.connect_to(translate, store);
+                        let rect = store.bounding_box();
+                        gegl.gegl_buffer_set_extent(new_layer.buffer, rect.ref());
                         tasks.push(new Promise((resolve, reject)=>{
                             store.process_async(()=>{
                                 top_node.dispose();

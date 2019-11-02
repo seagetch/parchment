@@ -117,6 +117,10 @@ export class Node {
     blit(rect, dest, babl=null) {
         gegl.gegl_node_blit(this.node, 1.0, rect? rect.ref(): null, babl? babl: gegl.babl_format("R'G'B'A u8"), dest, parseInt(gegl.GEGL_AUTO_ROWSTRIDE), parseInt(gegl.GEGL_BLIT_DEFAULT));
     }
+
+    bounding_box() {
+        return gegl.gegl_node_get_bounding_box(this.node);
+    }
 };
 export class Gegl {
     constructor(lib_config) {
@@ -190,6 +194,7 @@ export class Gegl {
             'gegl_path_append':['void',[gegl.PGeglPath], {varargs: true}],
             'gegl_path_get_bounds':['void',[gegl.PGeglPath, 'double *', 'double *', 'double *', 'double *']],
             'gegl_node_new_processor':[gegl.PGeglProcessor,[gegl.PGeglNode, gegl.PGeglRectangle]],
+            'gegl_node_get_bounding_box':[gegl.GeglRectangle, [gegl.PGeglNode]],
             'gegl_processor_work':['bool',[gegl.PGeglProcessor, 'double *']],
             'gegl_buffer_new':[gegl.PGeglBuffer,[gegl.PGeglRectangle, gegl.PBabl]],
             'gegl_buffer_linear_open':['pointer',[gegl.PGeglBuffer, gegl.PGeglRectangle, 'int *', gegl.PBabl]],
