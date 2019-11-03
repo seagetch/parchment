@@ -171,7 +171,7 @@ function tablet_motion(tablet) {
             surface_extent.width = current_extent.width;
             surface_extent.height = current_extent.height;
             undo.start();
-            ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
+            ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i)=>{
                 $(i).css({opacity: 0.3})
             });
         } else {
@@ -215,7 +215,7 @@ function tablet_motion(tablet) {
             undo = null;
             console.log("update "+bounds.x+","+bounds.y+","+bounds.width+","+bounds.height)
             image.update_async(bounds.x, bounds.y, bounds.width, bounds.height);
-            ['.tool-box', '.vertical-tool-box'].forEach((i)=>{
+            ['.tool-box', '.vertical-tool-box',  '.horizontal-tool-box'].forEach((i)=>{
                 $(i).css({opacity: 1.0})
             });
             refresh_layers();
@@ -400,6 +400,18 @@ $(function() {
             'margin-top' : function() {return -elem.outerHeight()/2}
         })
     });
+    $('.horizontal-tool-box').css({
+        'position' : 'fixed',
+        'left' : '50%',
+        'margin-left' : function() {return -$(this).outerWidth()/2}
+    }).dom_resize((elem) => {
+        console.log("resize")
+        elem.css({
+            'position' : 'fixed',
+            'left' : '50%',
+            'margin-left' : function() {return -elem.outerWidth()/2}
+        })
+    });
 });
 
 $(window).on("load", () =>{
@@ -450,7 +462,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
             image.update_all_async();
     });
 
-    ['.tool-box', '.vertical-tool-box'].forEach((i) => {
+    ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i) => {
         $(i).on("mouseenter", (ev)=>{
             if (!painting) {
                 console.log("suspend");
