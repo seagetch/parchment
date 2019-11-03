@@ -310,7 +310,7 @@ function refresh_layers() {
         let layer = image.layers[i];
         let thumb = layer.thumbnail(48);
 
-        let item = $("<div>").css({width: 50, height: 50, position: "relative"}).addClass("rounded tool-item").appendTo("#layer-list").attr("layer-index", i);
+        let item = $("<div>").css({width: 50, height: 50, position: "relative"}).addClass("rounded tool-item checkerboard-10").appendTo("#layer-list").attr("layer-index", i);
         let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
         img[0].width  = thumb.width;
         img[0].height = thumb.height;

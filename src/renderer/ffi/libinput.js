@@ -9,42 +9,41 @@ import lib_config from '../resources/lib_config'
 
 class LibInput {
     constructor() {
-        this.LIBINPUT_EVENT_NONE = 0;
-        this.LIBINPUT_EVENT_DEVICE_ADDED = 1;
-        this.LIBINPUT_EVENT_DEVICE_REMOVED = 2;
+        this.LIBINPUT_EVENT_NONE                    = 0;
+        this.LIBINPUT_EVENT_DEVICE_ADDED            = 1;
+        this.LIBINPUT_EVENT_DEVICE_REMOVED          = 2;
     
-        this.LIBINPUT_EVENT_KEYBOARD_KEY = 300;
+        this.LIBINPUT_EVENT_KEYBOARD_KEY            = 300;
     
         this.LIBINPUT_EVENT_POINTER_MOTION          = 400;
         this.LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE = 401;
         this.LIBINPUT_EVENT_POINTER_BUTTON          = 402;
         this.LIBINPUT_EVENT_POINTER_AXIS            = 403;
     
-        this.LIBINPUT_EVENT_TOUCH_DOWN   = 500;
-        this.LIBINPUT_EVENT_TOUCH_UP     = 501;
-        this.LIBINPUT_EVENT_TOUCH_MOTION = 502;
-        this.LIBINPUT_EVENT_TOUCH_CANCEL = 503;
-        this.LIBINPUT_EVENT_TOUCH_FRAME  = 504;
+        this.LIBINPUT_EVENT_TOUCH_DOWN              = 500;
+        this.LIBINPUT_EVENT_TOUCH_UP                = 501;
+        this.LIBINPUT_EVENT_TOUCH_MOTION            = 502;
+        this.LIBINPUT_EVENT_TOUCH_CANCEL            = 503;
+        this.LIBINPUT_EVENT_TOUCH_FRAME             = 504;
     
-        this.LIBINPUT_EVENT_TABLET_TOOL_AXIS      = 600;
-        this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY = 601;
-        this.LIBINPUT_EVENT_TABLET_TOOL_TIP       = 602;
-        this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON    = 603;
+        this.LIBINPUT_EVENT_TABLET_TOOL_AXIS        = 600;
+        this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY   = 601;
+        this.LIBINPUT_EVENT_TABLET_TOOL_TIP         = 602;
+        this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON      = 603;
 
-        this.LIBINPUT_EVENT_TABLET_PAD_BUTTON = 700;
-        this.LIBINPUT_EVENT_TABLET_PAD_RING   = 701;
+        this.LIBINPUT_EVENT_TABLET_PAD_BUTTON       = 700;
+        this.LIBINPUT_EVENT_TABLET_PAD_RING         = 701;
 
-        this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN  = 800;
-        this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE = 801;
-        this.LIBINPUT_EVENT_GESTURE_SWIPE_END    = 802;
+        this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN     = 800;
+        this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE    = 801;
+        this.LIBINPUT_EVENT_GESTURE_SWIPE_END       = 802;
 
-        this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN  = 803;
-        this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE = 804;
-        this.LIBINPUT_EVENT_GESTURE_PINCH_END    = 805;
+        this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN     = 803;
+        this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE    = 804;
+        this.LIBINPUT_EVENT_GESTURE_PINCH_END       = 805;
 
-        this.LIBINPUT_EVENT_SWITCH_TOGGLE = 900;
+        this.LIBINPUT_EVENT_SWITCH_TOGGLE           = 900;
     
-
         this.libinput_interface = Struct({
             'open_restricted': ffi.Function('int', ['string', 'int', 'pointer']),
             'close_restricted': ffi.Function('void', ['int', 'pointer'])
@@ -148,7 +147,6 @@ class LibInput {
     watch() {
         var fd = this.libinput_get_fd(this.li);
         this.libinput_dispatch(this.li);
-        var i = 0;
         let tablet_motion_handler = (type, event) =>{
             let ev_tablet = {
                 x: this.current_bounds? this.libinput_event_tablet_tool_get_x_transformed(event, this.current_bounds.width ) + this.current_bounds.x: -1,
@@ -216,24 +214,20 @@ class LibInput {
                     continue;
                 // handle the event here
                 switch (event_type) {
-                case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:      tablet_motion_handler("axis", event); break;
-                case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY: tablet_motion_handler("proximity", event); break;
-                case this.LIBINPUT_EVENT_TABLET_TOOL_TIP:       tablet_motion_handler("tip", event); break;
-                case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:    tablet_button_handler(event); break;
-                case this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:   gesture_swipe_handler("begin", event); break;
-                case this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:  gesture_swipe_handler("update", event); break;
-                case this.LIBINPUT_EVENT_GESTURE_SWIPE_END:     gesture_swipe_handler("end", event); break;        
-                case this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:   gesture_pinch_handler("begin", event); break;
-                case this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:  gesture_pinch_handler("update", event); break;
-                case this.LIBINPUT_EVENT_GESTURE_PINCH_END:     gesture_pinch_handler("end", event); break;
-                case 0:
-                    break;
-                default:
-                    console.log("Event:"+event_type)
-                    break;
+                    case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:        tablet_motion_handler("axis", event); break;
+                    case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY:   tablet_motion_handler("proximity", event); break;
+                    case this.LIBINPUT_EVENT_TABLET_TOOL_TIP:         tablet_motion_handler("tip", event); break;
+                    case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:      tablet_button_handler(event); break;
+                    case this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:     gesture_swipe_handler("begin", event); break;
+                    case this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:    gesture_swipe_handler("update", event); break;
+                    case this.LIBINPUT_EVENT_GESTURE_SWIPE_END:       gesture_swipe_handler("end", event); break;        
+                    case this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:     gesture_pinch_handler("begin", event); break;
+                    case this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:    gesture_pinch_handler("update", event); break;
+                    case this.LIBINPUT_EVENT_GESTURE_PINCH_END:       gesture_pinch_handler("end", event); break;
+                    case this.LIBINPUT_EVENT_NONE:                    break;
+                    default:                                          { console.log("Event:"+event_type); }; break;
                 }
                 this.libinput_event_destroy(event);
-                i++;
             }   
         });
         poller.add(fd, epoll.EPOLLIN);
