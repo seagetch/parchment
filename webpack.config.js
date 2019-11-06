@@ -36,8 +36,26 @@ module.exports = [
             { test: /\.ts$/, exclude: /node_modules/, loader: 'ts-loader', options: { appendTsSuffixTo: [/\.vue$/] }},
             { test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader',},
             { test: /\.css$/, use: [ "style-loader", "css-loader"] },
-            { test: /\.vue$/, loader: 'vue-loader'}
-        ]
+            { test: /\.vue$/, loader: 'vue-loader'},
+            { test: /\.(woff(2)?|ttf|eot|svg)(\?v=\d+\.\d+\.\d+)?$/,
+              use: [{
+                        loader: 'file-loader',
+                        options: {
+                            name: '[name].[ext]',
+                            outputPath: 'fonts/'
+                        }
+                  }]
+            },
+            { test: /\.png$/,
+                use: [{
+                          loader: 'file-loader',
+                          options: {
+                              name: '[name].[ext]',
+                              outputPath: 'img/'
+                          }
+                    }]
+              }
+          ]
     },
     resolve: {
         extensions: ['.js', '.ts']
@@ -48,6 +66,8 @@ module.exports = [
             "bootstrap", 
             "bootstrap-colorpicker/dist/css/bootstrap-colorpicker.css",
             "bootstrap-colorpicker",
+            "mdbootstrap/css/mdb.css",
+            "mdbootstrap",
             "@fortawesome/fontawesome-free/js/fontawesome", 
             "@fortawesome/fontawesome-free/js/regular", 
             "@fortawesome/fontawesome-free/js/solid"

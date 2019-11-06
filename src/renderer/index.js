@@ -18,6 +18,11 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
 import "bootstrap-colorpicker/dist/css/bootstrap-colorpicker.css";
 import "bootstrap-colorpicker";
+// FIXME: mdbootstrap has bug related to bsCustomFileInput.
+// To avoid that bug, we need to assign busCustomFileInput manually.
+window.bsCustomFileInput = require('bs-custom-file-input');
+require("mdbootstrap/css/mdb.css");
+require("mdbootstrap");
 
 import '@fortawesome/fontawesome-free/js/fontawesome';
 import '@fortawesome/fontawesome-free/js/solid';
@@ -75,45 +80,6 @@ function create_new_image(bounds) {
     image.select_layer(1);
     image.update_all_async();
 }
-
-class StopWatch {
-    constructor(sections) {
-        this.counts = new Array(sections);
-        this.start = new Array(sections);
-        this.total = new Array(sections);
-        this.id = 0;
-        this.clear();
-    }
-
-    start_watch(id) {
-        this.id = id;
-        this.start[this.id] = process.hrtime.bigint();
-    }
-    lap(id) {
-        let time = process.hrtime.bigint();
-        this.total[id] += time - this.start[this.id];
-        this.counts[id]++;
-        this.start[id] = time
-        this.id = id;
-    }
-    stop(id) {
-        this.lap(id);
-    }
-    show() {
-        for (let c = 0; c <= this.id; c++) {
-            console.log(c+":"+ this.counts[c]+"/ avg "+(this.counts[c]? parseFloat(this.total[c]) / 1000.0 / 1000.0 / this.counts[c]: 0).toFixed(2)+"msec")
-        }
-    }
-    clear() {
-        for (let c = 0; c < this.counts.length; c++) {
-            this.counts[c] = 0;
-            this.start[c] = BigInt(0);
-            this.total[c] = BigInt(0);
-        }
-    }
-}
-var watch = new StopWatch(10);
-
 
 function run_gegl() {
 }
@@ -278,7 +244,8 @@ function refresh_brushes() {
     }).on("colorpickerHide", (ev) =>{
         console.log("hidePicker");
         grabbed = false;
-    })
+    });
+
     let bg = $("#color-bg");
     $("input", bg).attr("value", "hsv("+color_bg[0]+","+color_bg[1]+","+color_bg[2]+")");
     bg.colorpicker().on("colorpickerChange", (e)=>{
@@ -290,7 +257,15 @@ function refresh_brushes() {
     }).on("colorpickerHide", (ev) =>{
         console.log("hidePicker");
         grabbed = false;
-    })
+    });
+    $('#radius-edit').attr({min: brush.setting_info("radius_logarithmic").min, max: brush.setting_info("radius_logarithmic").max, step: "any"}).on("input", (ev)=>{
+        brush.base_value("radius_logarithmic", $('#radius-edit').val());
+    }).val(brush.base_value("radius_logarithmic"));
+    console.log("brush.base_value::r:"+brush.base_value("radius_logarithmic"))
+    $('#opacity-edit').attr({min: brush.setting_info("opaque").min, max: brush.setting_info("opaque").max, step: "any"}).on("input", (ev)=>{
+        brush.base_value("opaque", $('#opacity-edit').val());
+    }).val(brush.base_value("opaque"));
+    console.log("brush.base_value::opacity:"+brush.base_value("opaque"));
 }
 
 function read_brushes() {

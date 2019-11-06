@@ -20,14 +20,20 @@ export class MypaintBrush {
         return libmypaint.mypaint_brush_setting_from_cname(cname);
     }
 
-    base_value(cname) {
+    base_value(cname,...args) {
         let id = this.get_setting_id(cname);
-        libmypaint.mypaint_brush_get_base_value(this.brush, id);
+        if (args.length == 0) {
+            let result= libmypaint.mypaint_brush_get_base_value(this.brush, id);
+            console.log(cname+":"+result);
+            return result;
+        } else if (args.length == 1) {
+            libmypaint.mypaint_brush_set_base_value(this.brush, id, args[0]);
+        }
     }
 
-    base_value(cname, value) {
+    setting_info(cname) {
         let id = this.get_setting_id(cname);
-        libmypaint.mypaint_brush_set_base_value(this.brush, id, value);
+        return libmypaint.mypaint_brush_setting_info(id).deref();
     }
 };
 export class LibMyPaint {
@@ -54,6 +60,10 @@ export class LibMyPaint {
             'refcount': 'int'
         });
         this.PMyPaintSurface = ref.refType(this.MyPaintSurface);
+        this.MyPaintBrushSettingInfo = Struct({
+            'cname': 'string', 'name': 'string', 'constant': 'bool', 'min': 'float', 'def': 'float', 'max': 'float', 'tooltip': 'string'
+        });
+        this.PMyPaintBrushSettingInfo = ref.refType(this.MyPaintBrushSettingInfo);
 
         Object.assign(this, ffi.Library(lib_config['libmypaint'], {
             'mypaint_brush_new': [this.PMyPaintBrush, []],
@@ -89,7 +99,8 @@ export class LibMyPaint {
             'mypaint_surface_init': ['void', [this.PMyPaintSurface]],
             'mypaint_surface_ref': ['void', [this.PMyPaintSurface]],
             'mypaint_surface_unref': ['void', [this.PMyPaintSurface]],
-            'mypaint_brush_setting_from_cname': ['int', ['string']]
+            'mypaint_brush_setting_from_cname': ['int', ['string']],
+            'mypaint_brush_setting_info':[this.PMyPaintBrushSettingInfo, ['int']]
         }));
         Object.assign(this, ffi.Library(lib_config['libmypaint-gegl'], {
             'mypaint_gegl_tiled_surface_get_buffer': [gegl.PGeglBuffer, [this.PMyPaintGeglTiledSurface]],
