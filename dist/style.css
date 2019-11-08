@@ -46,19 +46,10 @@ input[orient=vertical].custom-range {
     /*-webkit-appearance: slider-vertical; /*if we remove this slider-vertical then horizondally range bar styles applies correctly*/
     --w: 20vh;
     --h: 8px;
-    --w2: calc(0 - var(--w) / 2);
+    --w2: calc(- var(--w) / 2);
     width: var(--w);
-    transform: rotate(270deg) translateX(-10vh);
+    transform: rotate(270deg) translateX(-10vh) translateY(8px);
     transform-origin:left;
     margin-top: calc(var(--w) / 2);
-    margin-bottom: calc(var(--w) / 2);
-}
-
-.active.input[orient=vertical].custom-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    border: none;
-    height: 16px;
-    width: 16px;
-    border-radius: 50%;
-    margin-top: -4px;
+    margin-bottom: calc(var(--w) / 2 - 15px);
 }
