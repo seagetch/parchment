@@ -23,6 +23,8 @@ import "bootstrap-colorpicker";
 window.bsCustomFileInput = require('bs-custom-file-input');
 require("mdbootstrap/css/mdb.css");
 require("mdbootstrap");
+import "jquery";
+import "jquery-ui-dist/jquery-ui";
 
 import '@fortawesome/fontawesome-free/js/fontawesome';
 import '@fortawesome/fontawesome-free/js/solid';
@@ -164,6 +166,7 @@ function tablet_motion(tablet) {
                 setImmediate(do_update)
             }
             move_count ++;
+           
         }
     } else {
         if (painting) {
@@ -279,14 +282,38 @@ function read_brushes() {
     refresh_brushes();
 }
 
+let dragged_layer_index = null;
+let layer_list_initialized = false;
 function refresh_layers() {
     $("#layer-list").html("");
+    if (!layer_list_initialized) {
+        $("#layer-list").sortable({
+            start: (ev, ui)=>{
+                let layer = ui.item[0]["related-layer"];
+                dragged_layer_index = layer.parent.layers.length - 1 - ui.item.index();
+                grabbed = true;
+            },
+            stop: (ev, ui)=>{
+                let layer = ui.item[0]["related-layer"];
+                let dropped_layer_index = layer.parent.layers.length - 1 - ui.item.index();
+                layer.parent.reorder_layer(layer, dropped_layer_index);
+                image.undos.push(new layerundo.ReorderLayerUndo(layer, image, dragged_layer_index, dropped_layer_index));
+                refresh_layers();
+                image.update_all_async();
+                grabbed = false;
+            },
+
+        });
+        layer_list_initialized = true;
+    }
+
     for (let i = image.layers.length - 1; i >= 0; i --) {
         let layer = image.layers[i];
         let thumb = layer.thumbnail(48);
 
-        let item = $("<div>").css({width: 50, height: 50, position: "relative"}).addClass("rounded tool-item checkerboard-10").appendTo("#layer-list").attr("layer-index", i);
+        let item = $("<li>").css({width: 50, height: 50, position: "relative", "list-style": "none", margin: "0", padding: "0"}).addClass("rounded tool-item checkerboard-10 my-1").appendTo("#layer-list");
         let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
+        item[0]["related-layer"] = layer;
         img[0].width  = thumb.width;
         img[0].height = thumb.height;
         if (layer == image.current_layer())
@@ -311,7 +338,7 @@ function refresh_layers() {
         }).on("mouseleave", (ev)=>{
             delete_btn.hide();
             visible_btn.hide();
-        });
+        })
 
         delete_btn.on("click", (ev)=>{
             console.log("remove layer "+layer)
@@ -479,5 +506,6 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $('#new-file').on("click", ()=>{
         // ToDo: required confirmation if image is modified.
         create_new_image(bounds);
+        refresh_layers();
     });
 })

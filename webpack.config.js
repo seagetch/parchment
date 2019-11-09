@@ -68,6 +68,7 @@ module.exports = [
             "bootstrap-colorpicker",
             "mdbootstrap/css/mdb.css",
             "mdbootstrap",
+            "jquery-ui-dist", 
             "@fortawesome/fontawesome-free/js/fontawesome", 
             "@fortawesome/fontawesome-free/js/regular", 
             "@fortawesome/fontawesome-free/js/solid"

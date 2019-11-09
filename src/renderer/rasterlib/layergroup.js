@@ -61,6 +61,22 @@ export default class LayerGroup extends RasterLayer {
             this.validate();
         return layer;
     }
+    reorder_layer(layer, index) {
+        let i = this.layers.indexOf(layer);
+        if (i >= 0) {
+            this.layers.splice(i, 1);
+        } else {
+            return null;
+        }
+        if (index < this.layers.length) {
+            this.layers.splice(index, 0, layer);
+        } else if (index > 0) {
+            this.layers.push(layer);
+        } else {
+            this.layers.splice(0, 0, layer);
+        }
+        this.validate();
+    }
     update_children_op() {
         if (this.gnode)
             this.gnode.dispose();
