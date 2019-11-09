@@ -288,6 +288,7 @@ function refresh_layers() {
     $("#layer-list").html("");
     if (!layer_list_initialized) {
         $("#layer-list").sortable({
+            delay: 250,
             start: (ev, ui)=>{
                 let layer = ui.item[0]["related-layer"];
                 dragged_layer_index = layer.parent.layers.length - 1 - ui.item.index();
