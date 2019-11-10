@@ -5,6 +5,7 @@
     <link rel="stylesheet" href="style.css">
     <script>window.$ = window.jQuery = require('jquery');</script>
     <script src="./index.js"></script>
+    <!-- Main Navigation Bar-->
     <div class="container-fluid" style="position: absolute; width: 100%; height: 100vh; z-index: 10">
 <!--        <ul class="nav shadow-sm border font-weight-light text-primary justify-content-center rounded-bottom tool-box align-content-xl-center" id="tool-box">-->
         <div class="d-flex horizontal-tool-box shadow-sm font-weight-light text-primary rounded-bottom align-content-xl-center" style="position: fixed; top: 0;" id="tool-box">
@@ -40,20 +41,37 @@
             </span>
         </div>
     </div>
+    <!-- Left-side Tool Box -->
     <div class="rounded-left  p-2 vertical-tool-box shadow-sm" style="position: fixed; right: 0; width: 80px">
         <div id="layers">
+            <!-- Layer Operations -->
             <div class="d-flex justify-content-center">
                 <div class="rounded-circle bg-primary text-white p-2 my-2 shadow-sm" style="width: 32; height: 32" id="add-layer"><i class="fa fa-plus fa-1x"></i></div>
             </div>
             <hr color="#e4e4e4">
-            <ul id="layer-list" style="height: 50vh; max-height: 50vh; overflow-y: scroll; overflow-x: hidden; padding: 0">Layers</ul>
+            <!-- Layer List -->
+            <div style="position: relative" class="scroller">
+                <ul id="layer-list" class="scrollable" style="position: relative; height: 50vh; max-height: 50vh; overflow-y: scroll; overflow-x: hidden; padding: 0">Layers</ul>
+                <div class="text-primary scroll-up text-center" style="position: absolute; top: 0; z-index: 100; width:100%"><i class="fas fa-chevron-up fa-1x "></i></div>
+                <div class="text-primary scroll-down text-center" style="position: absolute; bottom: 0; z-index: 100; width:100%"><i class="fas fa-chevron-down fa-1x "></i></div>
+            </div>
         </div>
     </div>
+    <!-- Right-side Tool Box -->
     <div class="rounded-right p-2 vertical-tool-box shadow-sm" style="position: fixed; left:  0; width: 100px">
+        <!-- Horizontal-aligned Tool Panes -->
         <div class="d-flex">
+            <!-- Brush Palette -->
             <div>
-                <div id="brush-palette" style="height: 50vh; max-height: 70vh; overflow-y: scroll; overflow-x: hidden;">Brushes</div>
+                <!-- Brush Palette -->
+                
+                <div style="position: relative" class="scroller">
+                    <div id="brush-palette" class="scrollable" style="height: 50vh; max-height: 70vh; overflow-y: scroll; overflow-x: hidden;">Brushes</div>
+                    <div class="text-primary scroll-up text-center" style="position: absolute; top: 0; z-index: 100; width:100%"><i class="fas fa-chevron-up fa-1x "></i></div>
+                    <div class="text-primary scroll-down text-center" style="position: absolute; bottom: 0; z-index: 100; width:100%"><i class="fas fa-chevron-down fa-1x "></i></div>
+                </div>
                 <hr color="#e4e4e4">
+                <!-- Color Box -->
                 <div id="color-picker" class="d-flex justify-content-center" style="position: relative; height: 40px">
                     <div>
                         <div id="color-fg" class="input-group colorpicker-component border" style="position: absolute; width: 32px; height: 32px; position: absolute; z-index: 21; top: 0; left: 0">
@@ -67,6 +85,7 @@
                     </div>
                 </div>
             </div>
+            <!-- Brush Options -->
             <div id="brush-options"  class="text-primary">
                 <div class="my-4">
                     <form style="height: 100%; width: 16px;">
@@ -84,5 +103,6 @@
         </div>
     </div>
 
-        <canvas class="main-canvas" id="canvas" ></canvas>
+    <!-- Main Canvas -->
+    <canvas class="main-canvas" id="canvas" ></canvas>
 </body>

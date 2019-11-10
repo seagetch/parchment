@@ -390,6 +390,61 @@ $.fn.dom_resize = function(callback) {
     return this;
 }
 
+function update_scroller(elem) {
+    $(elem).each((i, e)=>{
+        let scrollable = $(e).find(".scrollable");
+        let scroll_top = scrollable.scrollTop();
+        let scroll_bottom = scrollable[0].scrollHeight - (scrollable.scrollTop() + scrollable[0].clientHeight);
+        $(e).find(".scroll-up").css({
+            display: scroll_top == 0? "none": "block"
+        });
+        $(e).find(".scroll-down").css({
+            display: scroll_bottom <= 0? "none": "block"
+        });
+    });
+}
+
+function setup_scroller(elem) {
+    update_scroller(elem);
+
+    $(elem).each((i, e)=>{
+        let scrollable = $(e).find(".scrollable");
+        
+        let up_timer_id = null;
+        $(e).find(".scroll-up").on("mousedown", (ev)=>{
+            let timer_handler = ()=>{
+                console.log("up 1");
+//                scrollable.animate({scrollTop: scrollable.scrollTop() - 48});
+                scrollable.scrollTop(scrollable.scrollTop() - 48);
+                up_timer_id = window.setTimeout(timer_handler, 80);
+            }
+            timer_handler();
+        }).on("mouseup mouseleave", (ev) => {
+            console.log("up cancel");
+            if (up_timer_id) {
+                window.clearTimeout(up_timer_id);
+                up_timer_id = null;
+            }
+        });
+        let down_timer_id = null;
+        $(e).find(".scroll-down").on("mousedown", (ev)=>{
+            let timer_handler = ()=>{
+                console.log("down 1");
+//                scrollable.animate({scrollTop: scrollable.scrollTop() + 48});
+                scrollable.scrollTop(scrollable.scrollTop() + 48);
+                down_timer_id = window.setTimeout(timer_handler, 80);
+            }
+            timer_handler();
+        }).on("mouseup mouseleave", (ev)=>{
+            if (down_timer_id) {
+                console.log("down cancel");
+                window.clearTimeout(down_timer_id);
+                down_timer_id = null;
+            }
+        });
+    });
+}
+
 $(function() {
     $('.vertical-tool-box').css({
         'position' : 'fixed',
@@ -408,12 +463,18 @@ $(function() {
         'left' : '50%',
         'margin-left' : function() {return -$(this).outerWidth()/2}
     }).dom_resize((elem) => {
-        console.log("resize")
         elem.css({
             'position' : 'fixed',
             'left' : '50%',
             'margin-left' : function() {return -elem.outerWidth()/2}
         })
+    });
+    setup_scroller($(".scroller .scrollable").on("scroll", (ev) =>{
+        update_scroller($(ev.target).parent());
+    }).parent());
+    $(".scroller").dom_resize((e) => {
+        console.log("dom_resize: scrollable")
+        update_scroller(e.parent());
     });
 });
 
