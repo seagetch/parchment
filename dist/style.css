@@ -15,10 +15,6 @@
     z-index: 10;
 }
 
-#layer-list::-webkit-scrollbar, #brush-palette::-webkit-scrollbar { 
-    width: 0px !important 
-}
-
 .checkerboard-10,.main-canvas {
     background-color: rgb(255,255,255);
     background-image:
@@ -52,4 +48,38 @@ input[orient=vertical].custom-range {
     transform-origin:left;
     margin-top: calc(var(--w) / 2);
     margin-bottom: calc(var(--w) / 2 - 15px);
+}
+
+ul#layer-list {
+    position: relative; 
+    height: 50vh; 
+    max-height: 50vh; 
+    padding: 0
+}
+
+.scroller .scroll-up,.scroller .scroll-down {
+    position: absolute; 
+    z-index: 100; 
+    width:100%;
+}
+
+.scroller .scroll-up {
+    top: 0; 
+}
+
+.scroller .scroll-down {
+    bottom: 0; 
+}
+
+.scroller .scrollable {
+    overflow-y: auto; 
+    overflow-x: hidden;
+}
+
+.scroller .scrollable::-webkit-scrollbar { 
+    width: 0px !important 
+}
+
+.scroller {
+    position: relative;
 }

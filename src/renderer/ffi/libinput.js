@@ -115,6 +115,8 @@ class LibInput {
         libinput_interface.close_restricted = close_callback;
         this.li = this.libinput_udev_create_context(libinput_interface.ref(), null, this.udev);
         this.libinput_udev_assign_seat(this.li, "seat0");
+        this.suspended = false;
+        this.grabbed = [];
     }
 
     dispose() {
@@ -126,6 +128,15 @@ class LibInput {
             this.udev_unref(this.udev);
             this.udev = null;
         }
+    }
+
+    grab_pointer(callback = null) {
+        this.grabbed.push(callback);
+    }
+
+    ungrab_pointer() {
+        if (this.grabbed.length > 0)
+            this.grabbed.splice(this.grabbed.length - 1, 1);
     }
 
     suspend() {
@@ -212,20 +223,25 @@ class LibInput {
                 var event = this.libinput_get_event(this.li);
                 if (this.suspended)
                     continue;
-                // handle the event here
-                switch (event_type) {
-                    case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:        tablet_motion_handler("axis", event); break;
-                    case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY:   tablet_motion_handler("proximity", event); break;
-                    case this.LIBINPUT_EVENT_TABLET_TOOL_TIP:         tablet_motion_handler("tip", event); break;
-                    case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:      tablet_button_handler(event); break;
-                    case this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:     gesture_swipe_handler("begin", event); break;
-                    case this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:    gesture_swipe_handler("update", event); break;
-                    case this.LIBINPUT_EVENT_GESTURE_SWIPE_END:       gesture_swipe_handler("end", event); break;        
-                    case this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:     gesture_pinch_handler("begin", event); break;
-                    case this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:    gesture_pinch_handler("update", event); break;
-                    case this.LIBINPUT_EVENT_GESTURE_PINCH_END:       gesture_pinch_handler("end", event); break;
-                    case this.LIBINPUT_EVENT_NONE:                    break;
-                    default:                                          { console.log("Event:"+event_type); }; break;
+                if (this.grabbed.length > 0) {
+                    if (this.grabbed[this.grabbed.length] != null)
+                        this.grabbed[this.grabbed.length - 1](event);
+                } else {
+                    // handle the event here
+                    switch (event_type) {
+                        case this.LIBINPUT_EVENT_TABLET_TOOL_AXIS:        tablet_motion_handler("axis", event); break;
+                        case this.LIBINPUT_EVENT_TABLET_TOOL_PROXIMITY:   tablet_motion_handler("proximity", event); break;
+                        case this.LIBINPUT_EVENT_TABLET_TOOL_TIP:         tablet_motion_handler("tip", event); break;
+                        case this.LIBINPUT_EVENT_TABLET_TOOL_BUTTON:      tablet_button_handler(event); break;
+                        case this.LIBINPUT_EVENT_GESTURE_SWIPE_BEGIN:     gesture_swipe_handler("begin", event); break;
+                        case this.LIBINPUT_EVENT_GESTURE_SWIPE_UPDATE:    gesture_swipe_handler("update", event); break;
+                        case this.LIBINPUT_EVENT_GESTURE_SWIPE_END:       gesture_swipe_handler("end", event); break;        
+                        case this.LIBINPUT_EVENT_GESTURE_PINCH_BEGIN:     gesture_pinch_handler("begin", event); break;
+                        case this.LIBINPUT_EVENT_GESTURE_PINCH_UPDATE:    gesture_pinch_handler("update", event); break;
+                        case this.LIBINPUT_EVENT_GESTURE_PINCH_END:       gesture_pinch_handler("end", event); break;
+                        case this.LIBINPUT_EVENT_NONE:                    break;
+                        default:                                          { console.log("Event:"+event_type); }; break;
+                    }
                 }
                 this.libinput_event_destroy(event);
             }   

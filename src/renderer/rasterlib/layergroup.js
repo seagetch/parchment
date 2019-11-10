@@ -179,9 +179,11 @@ export default class LayerGroup extends RasterLayer {
     update_all_async() {
         this.update_async(0, 0, this.width, this.height);
     }
-    select_layer(index) {
-        if (index < this.layers.length) {
-            this._current_layer = this.layers[index];
+    select_layer(index = -1) {
+        if (index >= 0) {
+            if (index < this.layers.length) {
+                this._current_layer = this.layers[index];
+            }
         }
         let group = this;
         while (group) {

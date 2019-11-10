@@ -30,340 +30,381 @@ import '@fortawesome/fontawesome-free/js/fontawesome';
 import '@fortawesome/fontawesome-free/js/solid';
 import '@fortawesome/fontawesome-free/js/regular';
 
-function on_image_update(image, x, y, w, h) {
-    let canvas = $('#canvas')[0];
-    let ctx = canvas.getContext("2d");
-    let rect2 = new gegl.GeglRectangle();
-    rect2.x = x;
-    rect2.y = y;
-    rect2.width = w;
-    rect2.height = h;
-    image.lock(gegl.babl_format("R'G'B'A u8"), rect2, (buffer, stride) => {
-        var buf2 = ref.reinterpret(buffer, stride * rect2.height, 0);
-        let imageData = null;
-        if (stride == rect2.width * 4) {
-            imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect2.width * rect2.height * 4), rect2.width, rect2.height);
-        } else {
-            let data = new Uint8ClampedArray(rect2.width * rect2.height * 4);
-            for (let y = 0; y < rect2.height; y ++)
-                buf2.copy(data, rect2.width * y * 4, stride * y, st * (y + 1));
-            imageData = new ImageData(data, rect2.width, rect2.height);
-        }
-        ctx.putImageData(imageData, rect2.x, rect2.y);
-    });
-};
+import "./utils"
 
-var image = null;
-
-function create_new_image(bounds) {
-    if (image)
-        image.dispose();
-    image = new RasterImage(bounds.width, bounds.height);
-    let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
-    let lrect = new gegl.GeglRectangle();
-    lrect.x = 0;
-    lrect.y = 0;
-    lrect.width = bounds.width;
-    lrect.height = bounds.height;
-    gegl.with_node((top_node)=>{
-        let rect  = gegl.node(top_node, {operation: 'gegl:rectangle', x: 0, y:0, width: bounds.width, height: bounds.height, color: gegl.gegl_color_new("rgb(1, 1, 1)")});
-        let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: base_layer.buffer});
-        rect.output().connect_to(write.input());
-        gegl.gegl_buffer_set_extent(base_layer.buffer, write.bounding_box().ref());
-        write.process();
-    });
-    image.add_layer(base_layer);
-    let layer = new RasterLayer(0, 0, -1, -1);
-    image.add_layer(layer);
-
-    image.on('update', on_image_update);
-    image.on('layer-selected', on_update_current_layer);
-
-    image.select_layer(1);
-    image.update_all_async();
-}
-
-function run_gegl() {
-}
-
-var brush;
-var gegl_surface;
-var surface_extent;
-var surface;
-var color_fg = [  0,   0,   0];
-var color_bg = [  0,   0,   1];
-
-function on_update_current_layer(group, current_layer) {
-    if (gegl_surface) {
-        mypaint.mypaint_surface_unref(gegl_surface);
-        mypaint.mypaint_surface_unref(surface);
-    }
-    gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
-    mypaint.mypaint_gegl_tiled_surface_set_buffer(gegl_surface, current_layer.buffer);
-    surface = mypaint.mypaint_gegl_tiled_surface_interface(gegl_surface);
-}
-
-function run_mypaint() {
-//    brush = new MypaintBrush(mypaint.mypaint_brush_new());
-//    mypaint.mypaint_brush_from_defaults(brush.brush);
-}
-
-var grabbed  = false;
-var painting = false;
-var last_event = {x: 0, y: 0, time: 0}
-var min_x = null, min_y = null, max_x = null, max_y = null;
-let undo = null;
-var move_count = 0;
-
-function tablet_motion(tablet) {
-    if (grabbed || !image || !surface || !brush)
-        return;
-    let canvas = $("#canvas")[0];
-    let client = canvas.getBoundingClientRect();
-    let offset_x = tablet.x - (client.left + window.screenLeft);
-    let offset_y = tablet.y - (client.top + window.screenTop);
-    if (tablet.pressure > 0) {
-        if (!painting) {
-            painting = true;
-            console.log("press"); // press event
-            brush.base_value("color_h", color_fg[0]);
-            brush.base_value("color_s", color_fg[1]);
-            brush.base_value("color_v", color_fg[2]);
-            mypaint.mypaint_brush_new_stroke(brush.brush);
-            min_x = offset_x; min_y = offset_y; max_x = offset_x; max_y = offset_y;
-            undo = new LayerBufferUndo(image, image.current_layer());
-            surface_extent = new gegl.GeglRectangle();
-            let current_extent = gegl.gegl_buffer_get_extent(image.current_layer().buffer).deref();
-            surface_extent.x = current_extent.x;
-            surface_extent.y = current_extent.y;
-            surface_extent.width = current_extent.width;
-            surface_extent.height = current_extent.height;
-            undo.start();
-            ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i)=>{
-                $(i).css({opacity: 0.3})
-            });
-        } else {
-            console.log("motion"); // motion event
-            let dtime = (tablet.time - last_event.time)/1000.0;
-            let rect = new mypaint.MyPaintRectangle();
-            mypaint.mypaint_surface_begin_atomic(surface);
-            mypaint.mypaint_brush_stroke_to(brush.brush, surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
-            mypaint.mypaint_surface_end_atomic(surface, rect.ref());
-            if (rect.width > 0 && rect.height > 0) {
-                if (rect.x < min_x) min_x = rect.x;
-                if (rect.y < min_y) min_y = rect.y;
-                if (max_x < rect.x + rect.width) max_x = rect.x + rect.width;
-                if (max_y < rect.y + rect.height) max_y = rect.y + rect.height;
-            }
-            last_event = tablet;
-            let do_update = () => {
-                image.update_async(rect.x, rect.y, rect.width, rect.height);
-            }
-            if (move_count % 1000 == 0) {
-                do_update();
-                move_count = 0;
+function CavnasViewer(canvas, image) {
+    let on_image_update = (image, x, y, w, h) => {
+        let ctx = canvas.getContext("2d");
+        let rect2 = new gegl.GeglRectangle();
+        rect2.x = x;
+        rect2.y = y;
+        rect2.width = w;
+        rect2.height = h;
+        image.lock(gegl.babl_format("R'G'B'A u8"), rect2, (buffer, stride) => {
+            var buf2 = ref.reinterpret(buffer, stride * rect2.height, 0);
+            let imageData = null;
+            if (stride == rect2.width * 4) {
+                imageData = new ImageData(new Uint8ClampedArray(buf2,0,rect2.width * rect2.height * 4), rect2.width, rect2.height);
             } else {
-                setImmediate(do_update)
+                let data = new Uint8ClampedArray(rect2.width * rect2.height * 4);
+                for (let y = 0; y < rect2.height; y ++)
+                    buf2.copy(data, rect2.width * y * 4, stride * y, st * (y + 1));
+                imageData = new ImageData(data, rect2.width, rect2.height);
             }
-            move_count ++;
-           
-        }
-    } else {
-        if (painting) {
-            console.log("release"); // release event
-            mypaint.mypaint_brush_reset(brush.brush);
-            let bounds = new mypaint.MyPaintRectangle();
-            surface_extent.combine_with(gegl.gegl_buffer_get_extent(image.current_layer().buffer).deref());
-            gegl.gegl_buffer_set_extent(image.current_layer().buffer, surface_extent.ref());
-            bounds.x = min_x;
-            bounds.y = min_y;
-            bounds.width = max_x - min_x;
-            bounds.height = max_y - min_y;
-            undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
-            image.undos.push(undo);
-            undo = null;
-            console.log("update "+bounds.x+","+bounds.y+","+bounds.width+","+bounds.height)
-            image.update_async(bounds.x, bounds.y, bounds.width, bounds.height);
-            ['.tool-box', '.vertical-tool-box',  '.horizontal-tool-box'].forEach((i)=>{
-                $(i).css({opacity: 1.0})
-            });
-            refresh_layers();
-        }
-        painting = false;
-    }
-}
-var total_dx = null;
-var total_dy = null;
-function swipe(event) {
-    switch (event.event_type) {
-        case 'begin':
-            total_dx = 0;
-            total_dy = 0;
-            console.log("swipe: start: "+total_dx+","+total_dy);
-            break;
-        case 'update':
-            total_dx += event.dx;
-            total_dy += event.dy;
-            break;
-        case 'end':
-            if (event.cancelled) {
-
-            } else {
-                console.log("swipe: total: "+total_dx+","+total_dy);
-            }
-            break;
+            ctx.putImageData(imageData, rect2.x, rect2.y);
+        });
     };
-};
+    image.on('update', on_image_update);
+}
 
-function run_libinput(screen_size) {
+function LibInputWatcher(screen_size) {
     libinput.current_bounds = screen_size;
-    libinput.on("tablet", tablet_motion);
-    libinput.on("swipe", swipe)
     libinput.watch();
 }
 
-let brushes;
-function refresh_brushes() {
-    $("#brush-palette").html("");
-    for (let path in brushes) {
-        let b = brushes[path];
-        let img = $("<img>").addClass("rounded").attr("src", b.icon).css({"width": 32, "height": 32}).appendTo("#brush-palette");
-        if (brush == b.brush) {
-            img.addClass("border border-primary");
+var color_fg = [  0,   0,   0];
+var color_bg = [  0,   0,   1];
+
+var image = null;
+
+class MyPaintBrushOperation {
+    constructor(libinput, canvas = null, image = null, list_view = null) {
+        this.libinput = libinput;
+        this.brush = null;
+        this.painting = false;
+        this.last_event = {x: 0, y: 0, time: 0}
+        this.min_x = null; 
+        this.min_y = null;
+        this.max_x = null;
+        this.max_y = null;
+        this.undo = null;
+        this.move_count = 0;
+        this.gegl_surface = null;
+        this.surface_extent = null;
+        this.surface = null;
+        this.total_dx = null;
+        this.total_dy = null;
+        if (canvas && image && list_view)
+            this.bind(canvas, image, list_view);
+    }
+    bind(canvas, image, list_view) {
+        this.dispose();
+        if (this.image) {
+            try {
+                image.off("layer-selected");
+            } catch(e) {
+                console.log(e);
+            }
         }
-        img.on("click", (ev) => {
-            brush = b.brush;
-            refresh_brushes();
-        })
+        if (this.libinput) {
+            try {
+                this.libinput.off("tablet");
+                this.libinput.off("swipe");
+            } catch (e) {
+                console.log(e);
+            }
+        }
+        this.image = image;
+        this.list_view = list_view;
+        this.canvas = canvas;
+        this.image.on('layer-selected', this.on_change_current_layer.bind(this));
+        this.image.select_layer(this.image.current_layer()?-1: 0);
+        this.libinput.on("tablet", this.tablet_motion.bind(this));
+        this.libinput.on("swipe", this.swipe.bind(this));
     }
-    let fg = $("#color-fg");
-    $("input", fg).attr("value", "hsv("+color_fg[0]+","+color_fg[1]+","+color_fg[2]+")");
-    fg.colorpicker().on("colorpickerChange", (e)=>{
-        color_fg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
-        console.log(color_fg);
-    }).on("colorpickerShow", (ev) =>{
-        console.log("colorpickerShow");
-        grabbed = true;
-    }).on("colorpickerHide", (ev) =>{
-        console.log("hidePicker");
-        grabbed = false;
-    });
+    dispose() {
+        if (this.gegl_surface) {
+            mypaint.mypaint_surface_unref(this.gegl_surface);
+            mypaint.mypaint_surface_unref(this.surface);
+        }
+    }
 
-    let bg = $("#color-bg");
-    $("input", bg).attr("value", "hsv("+color_bg[0]+","+color_bg[1]+","+color_bg[2]+")");
-    bg.colorpicker().on("colorpickerChange", (e)=>{
-        color_bg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
-        console.log(color_bg);
-    }).on("colorpickerShow", (ev) =>{
-        console.log("colorpickerShow");
-        grabbed = true;
-    }).on("colorpickerHide", (ev) =>{
-        console.log("hidePicker");
-        grabbed = false;
-    });
-    $('#radius-edit').attr({min: brush.setting_info("radius_logarithmic").min, max: brush.setting_info("radius_logarithmic").max, step: "any"}).on("input", (ev)=>{
-        brush.base_value("radius_logarithmic", $('#radius-edit').val());
-    }).val(brush.base_value("radius_logarithmic"));
-    console.log("brush.base_value::r:"+brush.base_value("radius_logarithmic"))
-    $('#opacity-edit').attr({min: brush.setting_info("opaque").min, max: brush.setting_info("opaque").max, step: "any"}).on("input", (ev)=>{
-        brush.base_value("opaque", $('#opacity-edit').val());
-    }).val(brush.base_value("opaque"));
-    console.log("brush.base_value::opacity:"+brush.base_value("opaque"));
+    tablet_motion(tablet) {
+        if (!this.image || !this.surface || !this.brush)
+            return;
+        let client = this.canvas.getBoundingClientRect();
+        let offset_x = tablet.x - (client.left + window.screenLeft);
+        let offset_y = tablet.y - (client.top + window.screenTop);
+        if (tablet.pressure > 0) {
+            if (!this.painting) {
+                // Press Event
+                this.painting = true;
+                console.log("press");
+                this.brush.base_value("color_h", color_fg[0]);
+                this.brush.base_value("color_s", color_fg[1]);
+                this.brush.base_value("color_v", color_fg[2]);
+                mypaint.mypaint_brush_new_stroke(this.brush.brush);
+                this.min_x = offset_x; this.min_y = offset_y; this.max_x = offset_x; this.max_y = offset_y;
+                this.undo = new LayerBufferUndo(this.image, this.image.current_layer());
+                this.surface_extent = new gegl.GeglRectangle();
+                let current_extent = gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref();
+                this.surface_extent.x = current_extent.x;
+                this.surface_extent.y = current_extent.y;
+                this.surface_extent.width = current_extent.width;
+                this.surface_extent.height = current_extent.height;
+                this.undo.start();
+                ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i)=>{
+                    $(i).css({opacity: 0.3})
+                });
+            } else {
+                // Motion Event
+                console.log("motion");
+                let dtime = (tablet.time - this.last_event.time)/1000.0;
+                let rect = new mypaint.MyPaintRectangle();
+                mypaint.mypaint_surface_begin_atomic(this.surface);
+                mypaint.mypaint_brush_stroke_to(this.brush.brush, this.surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
+                mypaint.mypaint_surface_end_atomic(this.surface, rect.ref());
+                if (rect.width > 0 && rect.height > 0) {
+                    if (rect.x < this.min_x) this.min_x = rect.x;
+                    if (rect.y < this.min_y) this.min_y = rect.y;
+                    if (this.max_x < rect.x + rect.width) this.max_x = rect.x + rect.width;
+                    if (this.max_y < rect.y + rect.height) this.max_y = rect.y + rect.height;
+                }
+                this.last_event = tablet;
+                let do_update = () => {
+                    this.image.update_async(rect.x, rect.y, rect.width, rect.height);
+                }
+                if (this.move_count % 1000 == 0) {
+                    do_update();
+                    this.move_count = 0;
+                } else {
+                    setImmediate(do_update)
+                }
+                this.move_count ++;
+            
+            }
+        } else {
+            if (this.painting) {
+                // Release Event
+                console.log("release");
+                mypaint.mypaint_brush_reset(this.brush.brush);
+                let bounds = new mypaint.MyPaintRectangle();
+                this.surface_extent.combine_with(gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref());
+                gegl.gegl_buffer_set_extent(this.image.current_layer().buffer, this.surface_extent.ref());
+                bounds.x = this.min_x;
+                bounds.y = this.min_y;
+                bounds.width = this.max_x - this.min_x;
+                bounds.height = this.max_y - this.min_y;
+                this.undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
+                this.image.undos.push(this.undo);
+                this.undo = null;
+                console.log("update "+bounds.x+","+bounds.y+","+bounds.width+","+bounds.height)
+                this.image.update_async(bounds.x, bounds.y, bounds.width, bounds.height);
+                ['.tool-box', '.vertical-tool-box',  '.horizontal-tool-box'].forEach((i)=>{
+                    $(i).css({opacity: 1.0})
+                });
+                this.list_view.update();
+            }
+            this.painting = false;
+        }
+    }
+    swipe(event) {
+        switch (event.event_type) {
+            case 'begin':
+                this.total_dx = 0;
+                this.total_dy = 0;
+                console.log("swipe: start: "+this.total_dx+","+this.total_dy);
+                break;
+            case 'update':
+                this.total_dx += event.dx;
+                this.total_dy += event.dy;
+                break;
+            case 'end':
+                if (event.cancelled) {
+
+                } else {
+                    console.log("swipe: total: "+this.total_dx+","+this.total_dy);
+                }
+                break;
+        };
+    };
+
+    on_change_current_layer(group, current_layer) {
+        if (this.gegl_surface) {
+            mypaint.mypaint_surface_unref(this.gegl_surface);
+            mypaint.mypaint_surface_unref(this.surface);
+        }
+        this.gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
+        mypaint.mypaint_gegl_tiled_surface_set_buffer(this.gegl_surface, current_layer.buffer);
+        this.surface = mypaint.mypaint_gegl_tiled_surface_interface(this.gegl_surface);
+    }
 }
 
-function read_brushes() {
-    let brush_path = path.join(process.cwd(), "brushes");
-    brushes = brush_loader(brush_path);
-    for (let path in brushes) {
-        brushes[path].brush = new MypaintBrush(brushes[path].brush);
-        if (!brush)
-            brush = brushes[path].brush;
+class BrushPaletteView {
+    constructor(context) {
+        this.brushes = null;
+        this.context = context;
+        this.init();
     }
-    refresh_brushes();
+
+    bind(list) {
+        this.list = list;
+        this.update();
+    }
+
+    update() {
+        this.list.html("");
+        for (let path in this.brushes) {
+            let b = this.brushes[path];
+            let img = $("<img>").addClass("rounded").attr("src", b.icon).css({"width": 32, "height": 32}).appendTo(this.list);
+            if (this.context.brush == b.brush) {
+                img.addClass("border border-primary");
+            }
+            img.on("click", (ev) => {
+                this.context.brush = b.brush;
+                this.update();
+            })
+        }
+        let fg = $("#color-fg");
+        $("input", fg).attr("value", "hsv("+color_fg[0]+","+color_fg[1]+","+color_fg[2]+")");
+        fg.colorpicker().on("colorpickerChange", (e)=>{
+            color_fg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
+            console.log(color_fg);
+        }).on("colorpickerShow", (ev) =>{
+            console.log("colorpickerShow");
+            libinput.grab_pointer();
+        }).on("colorpickerHide", (ev) =>{
+            console.log("hidePicker");
+            libinput.ungrab_pointer();
+        });
+
+        let bg = $("#color-bg");
+        $("input", bg).attr("value", "hsv("+color_bg[0]+","+color_bg[1]+","+color_bg[2]+")");
+        bg.colorpicker().on("colorpickerChange", (e)=>{
+            color_bg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
+            console.log(color_bg);
+        }).on("colorpickerShow", (ev) =>{
+            console.log("colorpickerShow");
+            libinput.grab_pointer();
+        }).on("colorpickerHide", (ev) =>{
+            console.log("hidePicker");
+            libinput.ungrab_pointer();
+        });
+        $('#radius-edit').attr({min: this.context.brush.setting_info("radius_logarithmic").min, max: this.context.brush.setting_info("radius_logarithmic").max, step: "any"}).on("input", (ev)=>{
+            this.context.brush.base_value("radius_logarithmic", $('#radius-edit').val());
+        }).val(this.context.brush.base_value("radius_logarithmic"));
+        console.log("brush.base_value::r:"+this.context.brush.base_value("radius_logarithmic"))
+        $('#opacity-edit').attr({min: this.context.brush.setting_info("opaque").min, max: this.context.brush.setting_info("opaque").max, step: "any"}).on("input", (ev)=>{
+            this.context.brush.base_value("opaque", $('#opacity-edit').val());
+        }).val(this.context.brush.base_value("opaque"));
+        console.log("brush.base_value::opacity:"+this.context.brush.base_value("opaque"));
+    }
+
+    init() {
+        let brush_path = path.join(process.cwd(), "brushes");
+        this.brushes = brush_loader(brush_path);
+        for (let path in this.brushes) {
+            this.brushes[path].brush = new MypaintBrush(this.brushes[path].brush);
+            if (!this.context.brush)
+                this.context.brush = this.brushes[path].brush;
+        }
+    }
 }
 
-let dragged_layer_index = null;
-let layer_list_initialized = false;
-function refresh_layers() {
-    $("#layer-list").html("");
-    if (!layer_list_initialized) {
-        $("#layer-list").sortable({
+
+class LayerListView {
+    constructor(list = null, image = null) {
+        if (list && image)
+            this.bind(list, image);
+    }
+
+    bind(list, image) {
+        if (this.list)
+            this.list.sortable("destroy");
+        this.list = list;
+        this.image = image;
+        this.dragged_layer_index = null;
+        this.list.sortable({
             delay: 250,
             start: (ev, ui)=>{
                 let layer = ui.item[0]["related-layer"];
-                dragged_layer_index = layer.parent.layers.length - 1 - ui.item.index();
-                grabbed = true;
+                this.dragged_layer_index = layer.parent.layers.length - 1 - ui.item.index();
+                libinput.grab_pointer();
             },
             stop: (ev, ui)=>{
                 let layer = ui.item[0]["related-layer"];
                 let dropped_layer_index = layer.parent.layers.length - 1 - ui.item.index();
                 layer.parent.reorder_layer(layer, dropped_layer_index);
-                image.undos.push(new layerundo.ReorderLayerUndo(layer, image, dragged_layer_index, dropped_layer_index));
-                refresh_layers();
-                image.update_all_async();
-                grabbed = false;
+                this.image.undos.push(new layerundo.ReorderLayerUndo(layer, this.image, this.dragged_layer_index, dropped_layer_index));
+                this.update();
+                this.image.update_all_async();
+                libinput.ungrab_pointer();
             },
 
         });
-        layer_list_initialized = true;
+        this.update();
     }
+    update() {
+        this.list.html("");
 
-    for (let i = image.layers.length - 1; i >= 0; i --) {
-        let layer = image.layers[i];
-        let thumb = layer.thumbnail(48);
-
-        let item = $("<li>").css({width: 50, height: 50, position: "relative", "list-style": "none", margin: "0", padding: "0"}).addClass("rounded tool-item checkerboard-10 my-1").appendTo("#layer-list");
-        let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
-        item[0]["related-layer"] = layer;
-        img[0].width  = thumb.width;
-        img[0].height = thumb.height;
-        if (layer == image.current_layer())
-            item.addClass("border-primary");
-
-        let delete_btn = $("<div>").addClass("text-white rounded-circle bg-danger").appendTo(item).css({
-            position: "absolute", top: 0, right: 0, width: 14, height: 14, padding: 1
-        }).hide();
-        $("<i>").addClass("fas fa-times fa-sm").appendTo(delete_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
-        let visible_btn = $("<div>").addClass("text-white rounded-circle bg-secondary").appendTo(item).css({
-            position: "absolute", top: 0, left: 0, width: 14, height: 14, padding: 1
-        }).hide();
-        $("<i>").addClass(layer.visible? "fas fa-eye fa-sm": "fas fa-eye-slash fa-sm").appendTo(visible_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
-
-        item.on("click", (ev)=>{
-            console.log("Select layer")
-            image.select_layer(i);        
-            refresh_layers();
-        }).on("mouseenter", (ev)=>{
-            delete_btn.show();
-            visible_btn.show();
-        }).on("mouseleave", (ev)=>{
-            delete_btn.hide();
-            visible_btn.hide();
-        })
-
-        delete_btn.on("click", (ev)=>{
-            console.log("remove layer "+layer)
-            let updated = (image.current_layer() == layer);
-            let index = image.layers.indexOf(layer);
-            if (index >= 0) {
-                image.remove_layer(layer);
-                image.undos.push(new layerundo.RemoveLayerUndo(layer, image, index));
-                refresh_layers();
-            }
-            image.update_all_async();
-            return false
-        });
-        visible_btn.on("click",(ev)=>{
-            console.log("visible")
-            layer.set_visibility(!layer.visible);
-            image.update_all_async();
-            refresh_layers();
-            return false;
-        });
-
-        let ctx = img[0].getContext("2d");
-        let imageData = new ImageData(thumb.buffer, thumb.width, thumb.height);
-        ctx.putImageData(imageData, 0, 0);
+        for (let i = this.image.layers.length - 1; i >= 0; i --) {
+            // Extract Model
+            let layer = this.image.layers[i];
+            let thumb = layer.thumbnail(48);
+    
+            // View
+            let item = $("<li>").css({width: 50, height: 50, position: "relative", "list-style": "none", margin: "0", padding: "0"}).addClass("rounded tool-item checkerboard-10 my-1").appendTo(this.list);
+            item[0]["related-layer"] = layer;
+            if (layer == this.image.current_layer())
+                item.addClass("border-primary");
+    
+            let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
+            img[0].width  = thumb.width;
+            img[0].height = thumb.height;
+    
+            let ctx = img[0].getContext("2d");
+            let imageData = new ImageData(thumb.buffer, thumb.width, thumb.height);
+            ctx.putImageData(imageData, 0, 0);
+    
+            let delete_btn = $("<div>").addClass("text-white rounded-circle bg-danger").appendTo(item).css({
+                position: "absolute", top: 0, right: 0, width: 14, height: 14, padding: 1
+            }).hide();
+            $("<i>").addClass("fas fa-times fa-sm").appendTo(delete_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
+    
+            let visible_btn = $("<div>").addClass("text-white rounded-circle bg-secondary").appendTo(item).css({
+                position: "absolute", top: 0, left: 0, width: 14, height: 14, padding: 1
+            }).hide();
+            $("<i>").addClass(layer.visible? "fas fa-eye fa-sm": "fas fa-eye-slash fa-sm").appendTo(visible_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
+    
+            // Controller
+            item.on("click", (ev)=>{
+                console.log("Select layer")
+                this.image.select_layer(i);        
+                this.update();
+            }).on("mouseenter", (ev)=>{
+                delete_btn.show();
+                visible_btn.show();
+            }).on("mouseleave", (ev)=>{
+                delete_btn.hide();
+                visible_btn.hide();
+            }).on("mousedown", (ev)=>{
+                console.log("grab")
+                libinput.grab_pointer();
+            }).on("mouseleave", (ev)=>{
+                console.log("ungrab")
+                libinput.ungrab_pointer();
+            })
+    
+            delete_btn.on("click", (ev)=>{
+                console.log("remove layer "+layer)
+                let updated = (this.image.current_layer() == layer);
+                let index = this.image.layers.indexOf(layer);
+                if (index >= 0) {
+                    this.image.remove_layer(layer);
+                    this.image.undos.push(new layerundo.RemoveLayerUndo(layer, this.image, index));
+                    this.update();
+                }
+                this.image.update_all_async();
+                return false
+            });
+            visible_btn.on("click",(ev)=>{
+                console.log("visible")
+                layer.set_visibility(!layer.visible);
+                this.image.update_all_async();
+                this.update();
+                return false;
+            });
+        }
     }
 }
 
@@ -375,131 +416,61 @@ function resize_canvas() {
         image.update_all_async();
 }
 
-$.fn.dom_resize = function(callback) {
-    for (let i = 0; i < this.length; i ++) {
-        let self = this[i];
-        let observer = new ResizeObserver((entries)=>{
-            console.log("dom_resize")
-            for (let e of entries) {
-                callback($(e.target));
-            }
-        });
-        observer.observe(self);
-        self.observer = observer;
-    }
-    return this;
-}
-
-function update_scroller(elem) {
-    $(elem).each((i, e)=>{
-        let scrollable = $(e).find(".scrollable");
-        let scroll_top = scrollable.scrollTop();
-        let scroll_bottom = scrollable[0].scrollHeight - (scrollable.scrollTop() + scrollable[0].clientHeight);
-        $(e).find(".scroll-up").css({
-            display: scroll_top == 0? "none": "block"
-        });
-        $(e).find(".scroll-down").css({
-            display: scroll_bottom <= 0? "none": "block"
-        });
-    });
-}
-
-function setup_scroller(elem) {
-    update_scroller(elem);
-
-    $(elem).each((i, e)=>{
-        let scrollable = $(e).find(".scrollable");
-        
-        let up_timer_id = null;
-        $(e).find(".scroll-up").on("mousedown", (ev)=>{
-            let timer_handler = ()=>{
-                console.log("up 1");
-//                scrollable.animate({scrollTop: scrollable.scrollTop() - 48});
-                scrollable.scrollTop(scrollable.scrollTop() - 48);
-                up_timer_id = window.setTimeout(timer_handler, 80);
-            }
-            timer_handler();
-        }).on("mouseup mouseleave", (ev) => {
-            console.log("up cancel");
-            if (up_timer_id) {
-                window.clearTimeout(up_timer_id);
-                up_timer_id = null;
-            }
-        });
-        let down_timer_id = null;
-        $(e).find(".scroll-down").on("mousedown", (ev)=>{
-            let timer_handler = ()=>{
-                console.log("down 1");
-//                scrollable.animate({scrollTop: scrollable.scrollTop() + 48});
-                scrollable.scrollTop(scrollable.scrollTop() + 48);
-                down_timer_id = window.setTimeout(timer_handler, 80);
-            }
-            timer_handler();
-        }).on("mouseup mouseleave", (ev)=>{
-            if (down_timer_id) {
-                console.log("down cancel");
-                window.clearTimeout(down_timer_id);
-                down_timer_id = null;
-            }
-        });
-    });
-}
-
-$(function() {
-    $('.vertical-tool-box').css({
-        'position' : 'fixed',
-        'top' : '50%',
-        'margin-top' : function() {return -$(this).outerHeight()/2}
-    }).dom_resize((elem) => {
-        console.log("resize")
-        elem.css({
-            'position' : 'fixed',
-            'top' : '50%',
-            'margin-top' : function() {return -elem.outerHeight()/2}
-        })
-    });
-    $('.horizontal-tool-box').css({
-        'position' : 'fixed',
-        'left' : '50%',
-        'margin-left' : function() {return -$(this).outerWidth()/2}
-    }).dom_resize((elem) => {
-        elem.css({
-            'position' : 'fixed',
-            'left' : '50%',
-            'margin-left' : function() {return -elem.outerWidth()/2}
-        })
-    });
-    setup_scroller($(".scroller .scrollable").on("scroll", (ev) =>{
-        update_scroller($(ev.target).parent());
-    }).parent());
-    $(".scroller").dom_resize((e) => {
-        console.log("dom_resize: scrollable")
-        update_scroller(e.parent());
-    });
-});
 
 $(window).on("load", () =>{
     resize_canvas();
-    run_gegl();
     ipcRenderer.send("start");
 })
 
 $(window).on("resize", resize_canvas);
 
 ipcRenderer.on("screen-size", (event, bounds) => {
-    run_mypaint();
+    let canvas = $('#canvas')[0];
+
+    function create_new_image(bounds) {
+        if (image)
+            image.dispose();
+        image = new RasterImage(bounds.width, bounds.height);
+        let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
+        let lrect = new gegl.GeglRectangle();
+        lrect.x = 0;
+        lrect.y = 0;
+        lrect.width = bounds.width;
+        lrect.height = bounds.height;
+        gegl.with_node((top_node)=>{
+            let rect  = gegl.node(top_node, {operation: 'gegl:rectangle', x: 0, y:0, width: bounds.width, height: bounds.height, color: gegl.gegl_color_new("rgb(1, 1, 1)")});
+            let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: base_layer.buffer});
+            rect.output().connect_to(write.input());
+            gegl.gegl_buffer_set_extent(base_layer.buffer, write.bounding_box().ref());
+            write.process();
+        });
+        image.add_layer(base_layer);
+        let layer = new RasterLayer(0, 0, -1, -1);
+        image.add_layer(layer);
+    
+        image.select_layer(1);
+        image.update_all_async();
+    }
+    
+    LibInputWatcher(bounds);
+
     create_new_image(bounds);
-    run_libinput(bounds);
-    read_brushes();
-    refresh_layers();
+    CavnasViewer(canvas, image);
+    let list_view  = new LayerListView();
+    var brush_op   = new MyPaintBrushOperation(libinput);
+    let brush_list = new BrushPaletteView(brush_op);
+
+    list_view.bind($('#layer-list'), image);
+    brush_op.bind(canvas, image, list_view);
+    brush_list.bind($("#brush-palette"));
 
     $("#file-load").on("click", () =>{
         format_ora.load("test.ora").then((result)=>{
             image.dispose();
             image = result;
-            image.on('update', on_image_update);
-            image.on('layer-selected', on_update_current_layer);
-            refresh_layers();
+            CavnasViewer($('#canvas')[0], image);
+            brush_op.bind(canvas, image, list_view);
+            list_view.bind($('#layer-list'), image);
             image.update_all_async();
         });
     });
@@ -510,7 +481,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $("#undo").on("click", ()=>{
         console.log("undo");
         let drect = image.undos.undo();
-        refresh_layers();
+        list_view.update();
         if (drect)
             image.update_async(drect.x, drect.y, drect.width, drect.height);
         else
@@ -519,7 +490,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $("#redo").on("click", ()=>{
         console.log("redo");
         let drect = image.undos.redo();
-        refresh_layers();
+        list_view.update();
         if (drect)
             image.update_async(drect.x, drect.y, drect.width, drect.height);
         else
@@ -528,14 +499,14 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i) => {
         $(i).on("mouseenter", (ev)=>{
-            if (!painting) {
+            if (!brush_op.painting) {
                 console.log("suspend");
                 libinput.suspend();
             }
             ev.stopPropagation();
         });
         $(i).on("mouseleave", (ev)=>{
-            if (!painting) {
+            if (!brush_op.painting) {
                 console.log("resume");
                 libinput.resume();
             }
@@ -543,13 +514,13 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     });
 
     $(document.body).on("mouseenter",(ev) => {
-        if (!painting) {
+        if (!brush_op.painting) {
             console.log("resume");
             libinput.resume();
         }
     });
     $(document.body).on("mouseleave", (ev)=>{
-        if (!painting) {
+        if (!brush_op.painting) {
             console.log("suspend");
             libinput.suspend();
         }
@@ -562,12 +533,14 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         let layer = new RasterLayer(0, 0, -1, -1);
         group.insert_layer(layer, index);
         image.undos.push(new layerundo.InsertLayerUndo(layer, group, index));
-        refresh_layers();
+        list_view.update();
     });
 
     $('#new-file').on("click", ()=>{
         // ToDo: required confirmation if image is modified.
         create_new_image(bounds);
-        refresh_layers();
+        CavnasViewer($('#canvas')[0], image);
+        brush_op.bind(canvas, image, list_view);
+        list_view.bind($('#layer-list'), image);
     });
 })
