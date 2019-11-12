@@ -32,6 +32,13 @@ import '@fortawesome/fontawesome-free/js/regular';
 
 import "./utils"
 
+var color_fg = [  0,   0,   0];
+var color_bg = [  0,   0,   1];
+
+var image = null;
+
+
+
 function CavnasViewer(canvas, image) {
     let on_image_update = (image, x, y, w, h) => {
         let ctx = canvas.getContext("2d");
@@ -61,14 +68,8 @@ function LibInputWatcher(screen_size) {
     libinput.current_bounds = screen_size;
     libinput.watch();
 }
-
-var color_fg = [  0,   0,   0];
-var color_bg = [  0,   0,   1];
-
-var image = null;
-
 class MyPaintBrushOperation {
-    constructor(libinput, canvas = null, image = null, list_view = null) {
+    constructor(libinput, canvas = null, image = null, layer_list_view = null) {
         this.libinput = libinput;
         this.brush = null;
         this.painting = false;
@@ -84,10 +85,10 @@ class MyPaintBrushOperation {
         this.surface = null;
         this.total_dx = null;
         this.total_dy = null;
-        if (canvas && image && list_view)
-            this.bind(canvas, image, list_view);
+        if (canvas && image && layer_list_view)
+            this.bind(canvas, image, layer_list_view);
     }
-    bind(canvas, image, list_view) {
+    bind(canvas, image, layer_list_view) {
         this.dispose();
         if (this.image) {
             try {
@@ -105,7 +106,7 @@ class MyPaintBrushOperation {
             }
         }
         this.image = image;
-        this.list_view = list_view;
+        this.layer_list_view = layer_list_view;
         this.canvas = canvas;
         this.image.on('layer-selected', this.on_change_current_layer.bind(this));
         this.image.select_layer(this.image.current_layer()?-1: 0);
@@ -193,7 +194,7 @@ class MyPaintBrushOperation {
                 ['.tool-box', '.vertical-tool-box',  '.horizontal-tool-box'].forEach((i)=>{
                     $(i).css({opacity: 1.0})
                 });
-                this.list_view.update();
+                this.layer_list_view.update();
             }
             this.painting = false;
         }
@@ -300,7 +301,6 @@ class BrushPaletteView {
         }
     }
 }
-
 
 class LayerListView {
     constructor(list = null, image = null) {
@@ -456,21 +456,21 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     create_new_image(bounds);
     CavnasViewer(canvas, image);
-    let list_view  = new LayerListView();
-    var brush_op   = new MyPaintBrushOperation(libinput);
-    let brush_list = new BrushPaletteView(brush_op);
+    let layer_list_view    = new LayerListView();
+    let brush_op           = new MyPaintBrushOperation(libinput);
+    let brush_palette_view = new BrushPaletteView(brush_op);
 
-    list_view.bind($('#layer-list'), image);
-    brush_op.bind(canvas, image, list_view);
-    brush_list.bind($("#brush-palette"));
+    layer_list_view.bind($('#layer-list'), image);
+    brush_op.bind(canvas, image, layer_list_view);
+    brush_palette_view.bind($("#brush-palette"));
 
     $("#file-load").on("click", () =>{
         format_ora.load("test.ora").then((result)=>{
             image.dispose();
             image = result;
             CavnasViewer($('#canvas')[0], image);
-            brush_op.bind(canvas, image, list_view);
-            list_view.bind($('#layer-list'), image);
+            brush_op.bind(canvas, image, layer_list_view);
+            layer_list_view.bind($('#layer-list'), image);
             image.update_all_async();
         });
     });
@@ -481,7 +481,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $("#undo").on("click", ()=>{
         console.log("undo");
         let drect = image.undos.undo();
-        list_view.update();
+        layer_list_view.update();
         if (drect)
             image.update_async(drect.x, drect.y, drect.width, drect.height);
         else
@@ -490,7 +490,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $("#redo").on("click", ()=>{
         console.log("redo");
         let drect = image.undos.redo();
-        list_view.update();
+        layer_list_view.update();
         if (drect)
             image.update_async(drect.x, drect.y, drect.width, drect.height);
         else
@@ -533,14 +533,14 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         let layer = new RasterLayer(0, 0, -1, -1);
         group.insert_layer(layer, index);
         image.undos.push(new layerundo.InsertLayerUndo(layer, group, index));
-        list_view.update();
+        layer_list_view.update();
     });
 
     $('#new-file').on("click", ()=>{
         // ToDo: required confirmation if image is modified.
         create_new_image(bounds);
         CavnasViewer($('#canvas')[0], image);
-        brush_op.bind(canvas, image, list_view);
-        list_view.bind($('#layer-list'), image);
+        brush_op.bind(canvas, image, layer_list_view);
+        layer_list_view.bind($('#layer-list'), image);
     });
 })

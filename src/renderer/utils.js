@@ -49,7 +49,29 @@ $.fn.dom_resize = function(callback) {
             }
         });
         observer.observe(self);
-        self.observer = observer;
+        if (!self.observers)
+            self.observers = [];
+        self.observers.push(observer);
+    }
+    return this;
+}
+
+$.fn.dom_change = function(callback) {
+    for (let i = 0; i < this.length; i ++) {
+        let self = this[i];
+        let observer = new MutationObserver((entries)=>{
+            console.log("dom_overflow")
+            for (let e of entries) {
+                callback($(e.target));
+            }
+        });
+        observer.observe(self, {
+            attributes: true,
+            childList: true
+        });
+        if (!self.observers)
+            self.observers = [];
+        self.observers.push(observer);
     }
     return this;
 }
@@ -109,13 +131,8 @@ function ScrolledView(jQuery) {
 
     jQuery(".scroller .scrollable").on("scroll", (ev) =>{
         update(jQuery(ev.target).parent());
-    }).on("overflowchanged", (ev) => {
-        console.log("dom_overflow:"+ev);
-        update(jQuery(ev.target).parent());
-    });
-    jQuery(".scroller").on("overflowchanged", (ev) => {
-        console.log("dom_overflow:"+ev);
-        update(jQuery(ev.target));
+    }).dom_resize((elem) => {
+        update(elem.parent());
     });
 }
 

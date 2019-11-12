@@ -50,11 +50,16 @@ input[orient=vertical].custom-range {
     margin-bottom: calc(var(--w) / 2 - 15px);
 }
 
-ul#layer-list {
+#layers {
     position: relative; 
-    height: 50vh; 
+}
+#layer-list-scroller {
+    height: 50vh;
+}
+ul#layer-list {
+    padding: 0;
+/*    height: 50vh; */
     max-height: 50vh; 
-    padding: 0
 }
 
 .scroller .scroll-up,.scroller .scroll-down {
