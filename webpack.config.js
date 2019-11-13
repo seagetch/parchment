@@ -34,7 +34,7 @@ module.exports = [
     module: {
         rules: [
             { test: /\.ts$/, exclude: /node_modules/, loader: 'ts-loader', options: { appendTsSuffixTo: [/\.vue$/] }},
-            { test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader',},
+            { test: /\.js$/, loader: 'babel-loader',},
             { test: /\.css$/, use: [ "style-loader", "css-loader"] },
             { test: /\.vue$/, loader: 'vue-loader'},
             { test: /\.(woff(2)?|ttf|eot|svg)(\?v=\d+\.\d+\.\d+)?$/,
@@ -66,9 +66,11 @@ module.exports = [
             "bootstrap", 
             "bootstrap-colorpicker/dist/css/bootstrap-colorpicker.css",
             "bootstrap-colorpicker",
+            "bs-custom-file-input",
             "mdbootstrap/css/mdb.css",
             "mdbootstrap",
-            "jquery-ui-dist", 
+            "mdbootstrap/js/mdb.min.js",
+            "jquery-ui-dist/jquery-ui", 
             "@fortawesome/fontawesome-free/js/fontawesome", 
             "@fortawesome/fontawesome-free/js/regular", 
             "@fortawesome/fontawesome-free/js/solid"

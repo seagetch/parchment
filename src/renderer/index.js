@@ -14,21 +14,22 @@ import * as layerundo from './rasterlib/layerundo';
 import * as format_ora from './rasterlib/format/ora';
 const brush_loader = require('./resources/brushset')(mypaint);
 
-import "bootstrap/dist/css/bootstrap.min.css";
-import "bootstrap";
-import "bootstrap-colorpicker/dist/css/bootstrap-colorpicker.css";
-import "bootstrap-colorpicker";
+const $ = require("jquery");
+require("jquery-ui-dist/jquery-ui");
+require("bootstrap/dist/css/bootstrap.min.css");
+require("bootstrap");
+require("bootstrap-colorpicker/dist/css/bootstrap-colorpicker.css");
+require("bootstrap-colorpicker");
+require('@fortawesome/fontawesome-free/js/fontawesome');
+require('@fortawesome/fontawesome-free/js/solid');
+require('@fortawesome/fontawesome-free/js/regular');
+/*
 // FIXME: mdbootstrap has bug related to bsCustomFileInput.
 // To avoid that bug, we need to assign busCustomFileInput manually.
-window.bsCustomFileInput = require('bs-custom-file-input');
+//window.bsCustomFileInput = require('bs-custom-file-input');
 require("mdbootstrap/css/mdb.css");
 require("mdbootstrap");
-import "jquery";
-import "jquery-ui-dist/jquery-ui";
-
-import '@fortawesome/fontawesome-free/js/fontawesome';
-import '@fortawesome/fontawesome-free/js/solid';
-import '@fortawesome/fontawesome-free/js/regular';
+*/
 
 import "./utils"
 
@@ -165,7 +166,7 @@ class MyPaintBrushOperation {
                 let do_update = () => {
                     this.image.update_async(rect.x, rect.y, rect.width, rect.height);
                 }
-                if (this.move_count % 1000 == 0) {
+                if (this.move_count % 5 == 0) {
                     do_update();
                     this.move_count = 0;
                 } else {
