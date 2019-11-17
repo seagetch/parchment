@@ -164,7 +164,8 @@ class MyPaintBrushOperation {
             if (!this.painting) {
                 // Press Event
                 this.painting = true;
-                console.log("press");
+                console.log("resume "+tablet.tool_type);
+
                 this.brush(tablet.tool_type).resume();
                 this.brush(tablet.tool_type).base_value("color_h", color_fg[0]);
                 this.brush(tablet.tool_type).base_value("color_s", color_fg[1]);
@@ -184,7 +185,6 @@ class MyPaintBrushOperation {
                 });
             } else {
                 // Motion Event
-                console.log("motion");
                 let dtime = (tablet.time - this.last_event.time)/1000.0;
                 let rect = new mypaint.MyPaintRectangle();
                 mypaint.mypaint_surface_begin_atomic(this.surface);
@@ -212,7 +212,6 @@ class MyPaintBrushOperation {
         } else {
             if (this.painting) {
                 // Release Event
-                console.log("release");
                 mypaint.mypaint_brush_reset(this.brush(tablet.tool_type).brush);
                 let bounds = new mypaint.MyPaintRectangle();
                 this.surface_extent.combine_with(gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref());
@@ -230,6 +229,8 @@ class MyPaintBrushOperation {
                     $(i).css({opacity: 1.0})
                 });
                 this.layer_list_view.update();
+                console.log("suspend "+tablet.tool_type);
+                this.brush(tablet.tool_type).suspend();
             }
             this.painting = false;
         }
@@ -607,18 +608,16 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         $('#eraser').removeClass("text-primary").addClass("text-secondary");
         $('#paint').removeClass("text-secondary").addClass("text-primary");
         current_op = brush_op;
-        current_op.brush().suspend();
         current_op.default_mode = 1;
-        current_op.brush().resume();
+        brush_palette_view.update();
     });
 
     $('#eraser').on("click", ()=>{
         $('#paint').removeClass("text-primary").addClass("text-secondary");
         $('#eraser').removeClass("text-secondary").addClass("text-primary");
         current_op = brush_op;
-        current_op.brush().suspend();
         current_op.default_mode = 2;
-        current_op.brush().resume();
+        brush_palette_view.update();
     });
     $('#eraser').removeClass("text-primary").addClass("text-secondary");
     $('#paint').removeClass("text-secondary").addClass("text-primary");
