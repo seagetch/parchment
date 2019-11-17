@@ -9,7 +9,7 @@ import RasterLayer from './rasterlib/layer';
 import LayerGroup from './rasterlib/layergroup';
 import LayerBufferUndo from './rasterlib/layerbufferundo';
 import libinput from './ffi/libinput';
-import mypaint, {MypaintBrush} from './ffi/libmypaint';
+import mypaint, {MypaintBrush, MyPaintBrushModifier} from './ffi/libmypaint';
 import * as layerundo from './rasterlib/layerundo';
 import * as format_ora from './rasterlib/format/ora';
 const brush_loader = require('./resources/brushset')(mypaint);
@@ -23,11 +23,11 @@ require("bootstrap-colorpicker");
 require('@fortawesome/fontawesome-free/js/fontawesome');
 require('@fortawesome/fontawesome-free/js/solid');
 require('@fortawesome/fontawesome-free/js/regular');
+require("mdbootstrap/css/mdb.css");
 /*
 // FIXME: mdbootstrap has bug related to bsCustomFileInput.
 // To avoid that bug, we need to assign busCustomFileInput manually.
 //window.bsCustomFileInput = require('bs-custom-file-input');
-require("mdbootstrap/css/mdb.css");
 require("mdbootstrap");
 */
 
@@ -72,7 +72,9 @@ function LibInputWatcher(screen_size) {
 class MyPaintBrushOperation {
     constructor(libinput, canvas = null, image = null, layer_list_view = null) {
         this.libinput = libinput;
-        this.brush = null;
+        this.brushes = [null];
+        this.brushes.push(new MyPaintBrushModifier());
+        this.brushes.push(new MyPaintBrushModifier({"eraser": 1}));
         this.painting = false;
         this.last_event = {x: 0, y: 0, time: 0}
         this.min_x = null; 
@@ -86,9 +88,29 @@ class MyPaintBrushOperation {
         this.surface = null;
         this.total_dx = null;
         this.total_dy = null;
+        this.default_mode = 1;
         if (canvas && image && layer_list_view)
             this.bind(canvas, image, layer_list_view);
     }
+
+    brush(index = 1) {
+        if (index == 1) {
+            return this.brushes[this.default_mode];
+        } else {
+            return this.brushes[index];
+        }
+    }
+
+    set_brush(_brush, tablet_button = 1) {
+        if (tablet_button == 1) {
+            this.brushes[this.default_mode].bind(_brush);
+            this.brushes[this.default_mode].suspend();
+        } else {
+            this.brushes[tablet_button].bind(_brush);
+            this.brushes[tablet_button].suspend();
+        }
+    }
+
     bind(canvas, image, layer_list_view) {
         this.dispose();
         if (this.image) {
@@ -114,10 +136,21 @@ class MyPaintBrushOperation {
         this.libinput.on("tablet", this.tablet_motion.bind(this));
         this.libinput.on("swipe", this.swipe.bind(this));
     }
+    unbind() {
+        this.image.off('layer-selected');
+        this.libinput.off("tablet");
+        this.libinput.off("swipe");
+        this.image = null;
+        this.layer_list_view = null;
+        this.canvas = null;
+        this.dispose();
+    }
     dispose() {
         if (this.gegl_surface) {
             mypaint.mypaint_surface_unref(this.gegl_surface);
             mypaint.mypaint_surface_unref(this.surface);
+            this.gegl_surface = null;
+            this.surface = null;
         }
     }
 
@@ -132,10 +165,11 @@ class MyPaintBrushOperation {
                 // Press Event
                 this.painting = true;
                 console.log("press");
-                this.brush.base_value("color_h", color_fg[0]);
-                this.brush.base_value("color_s", color_fg[1]);
-                this.brush.base_value("color_v", color_fg[2]);
-                mypaint.mypaint_brush_new_stroke(this.brush.brush);
+                this.brush(tablet.tool_type).resume();
+                this.brush(tablet.tool_type).base_value("color_h", color_fg[0]);
+                this.brush(tablet.tool_type).base_value("color_s", color_fg[1]);
+                this.brush(tablet.tool_type).base_value("color_v", color_fg[2]);
+                mypaint.mypaint_brush_new_stroke(this.brush(tablet.tool_type).brush);
                 this.min_x = offset_x; this.min_y = offset_y; this.max_x = offset_x; this.max_y = offset_y;
                 this.undo = new LayerBufferUndo(this.image, this.image.current_layer());
                 this.surface_extent = new gegl.GeglRectangle();
@@ -154,7 +188,7 @@ class MyPaintBrushOperation {
                 let dtime = (tablet.time - this.last_event.time)/1000.0;
                 let rect = new mypaint.MyPaintRectangle();
                 mypaint.mypaint_surface_begin_atomic(this.surface);
-                mypaint.mypaint_brush_stroke_to(this.brush.brush, this.surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
+                mypaint.mypaint_brush_stroke_to(this.brush(tablet.tool_type).brush, this.surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
                 mypaint.mypaint_surface_end_atomic(this.surface, rect.ref());
                 if (rect.width > 0 && rect.height > 0) {
                     if (rect.x < this.min_x) this.min_x = rect.x;
@@ -179,7 +213,7 @@ class MyPaintBrushOperation {
             if (this.painting) {
                 // Release Event
                 console.log("release");
-                mypaint.mypaint_brush_reset(this.brush.brush);
+                mypaint.mypaint_brush_reset(this.brush(tablet.tool_type).brush);
                 let bounds = new mypaint.MyPaintRectangle();
                 this.surface_extent.combine_with(gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref());
                 gegl.gegl_buffer_set_extent(this.image.current_layer().buffer, this.surface_extent.ref());
@@ -233,27 +267,35 @@ class MyPaintBrushOperation {
 }
 
 class BrushPaletteView {
-    constructor(context) {
+    constructor() {
         this.brushes = null;
-        this.context = context;
         this.init();
     }
 
-    bind(list) {
+    bind(list, context) {
         this.list = list;
+        this.context = context;
+        for (let i = 1; i < 3; i ++) {
+            this.context.set_brush(this.default_brush, i);
+        }
         this.update();
+    }
+
+    unbind() {
+        this.list = null;
+        this.context = null;
     }
 
     update() {
         this.list.html("");
         for (let path in this.brushes) {
             let b = this.brushes[path];
-            let img = $("<img>").addClass("rounded").attr("src", b.icon).css({"width": 32, "height": 32}).appendTo(this.list);
-            if (this.context.brush == b.brush) {
+            let img = $("<img>").addClass("rounded palette-button").attr("src", b.icon).appendTo(this.list);
+            if (this.context.brush().brush == b.brush.brush) {
                 img.addClass("border border-primary");
             }
             img.on("click", (ev) => {
-                this.context.brush = b.brush;
+                this.context.set_brush(b.brush);
                 this.update();
             })
         }
@@ -282,14 +324,22 @@ class BrushPaletteView {
             console.log("hidePicker");
             libinput.ungrab_pointer();
         });
-        $('#radius-edit').attr({min: this.context.brush.setting_info("radius_logarithmic").min, max: this.context.brush.setting_info("radius_logarithmic").max, step: "any"}).on("input", (ev)=>{
-            this.context.brush.base_value("radius_logarithmic", $('#radius-edit').val());
-        }).val(this.context.brush.base_value("radius_logarithmic"));
-        console.log("brush.base_value::r:"+this.context.brush.base_value("radius_logarithmic"))
-        $('#opacity-edit').attr({min: this.context.brush.setting_info("opaque").min, max: this.context.brush.setting_info("opaque").max, step: "any"}).on("input", (ev)=>{
-            this.context.brush.base_value("opaque", $('#opacity-edit').val());
-        }).val(this.context.brush.base_value("opaque"));
-        console.log("brush.base_value::opacity:"+this.context.brush.base_value("opaque"));
+
+        $('#radius-edit').attr({
+            min: this.context.brush().setting_info("radius_logarithmic").min, 
+            max: this.context.brush().setting_info("radius_logarithmic").max, 
+            step: "any"
+        }).on("input", (ev)=>{
+            this.context.brush().base_value("radius_logarithmic", $('#radius-edit').val());
+        }).val(this.context.brush().base_value("radius_logarithmic"));
+
+        $('#opacity-edit').attr({
+            min: this.context.brush().setting_info("opaque").min, 
+            max: this.context.brush().setting_info("opaque").max, 
+            step: "any"
+        }).on("input", (ev)=>{
+            this.context.brush().base_value("opaque", $('#opacity-edit').val());
+        }).val(this.context.brush().base_value("opaque"));
     }
 
     init() {
@@ -297,8 +347,9 @@ class BrushPaletteView {
         this.brushes = brush_loader(brush_path);
         for (let path in this.brushes) {
             this.brushes[path].brush = new MypaintBrush(this.brushes[path].brush);
-            if (!this.context.brush)
-                this.context.brush = this.brushes[path].brush;
+            if (!this.default_brush) {
+                this.default_brush = this.brushes[path].brush;
+            }
         }
     }
 }
@@ -310,8 +361,7 @@ class LayerListView {
     }
 
     bind(list, image) {
-        if (this.list)
-            this.list.sortable("destroy");
+        this.unbind();
         this.list = list;
         this.image = image;
         this.dragged_layer_index = null;
@@ -335,6 +385,12 @@ class LayerListView {
         });
         this.update();
     }
+    unbind() {
+        if (this.list)
+            this.list.sortable("destroy");
+        this.list = null;
+        this.image = null;
+    }
     update() {
         this.list.html("");
 
@@ -357,19 +413,14 @@ class LayerListView {
             let imageData = new ImageData(thumb.buffer, thumb.width, thumb.height);
             ctx.putImageData(imageData, 0, 0);
     
-            let delete_btn = $("<div>").addClass("text-white rounded-circle bg-danger").appendTo(item).css({
-                position: "absolute", top: 0, right: 0, width: 14, height: 14, padding: 1
-            }).hide();
-            $("<i>").addClass("fas fa-times fa-sm").appendTo(delete_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
+            let delete_btn = $("<div>").addClass("text-white rounded-circle bg-danger layer-op-button").appendTo(item).css({ top: 0, right: 0 }).hide();
+            $("<i>").addClass("fas fa-times fa-sm").appendTo(delete_btn).addClass("layer-op-icon").css({width: 14, height: 14, top: 0, left: 0 });
     
-            let visible_btn = $("<div>").addClass("text-white rounded-circle bg-secondary").appendTo(item).css({
-                position: "absolute", top: 0, left: 0, width: 14, height: 14, padding: 1
-            }).hide();
-            $("<i>").addClass(layer.visible? "fas fa-eye fa-sm": "fas fa-eye-slash fa-sm").appendTo(visible_btn).css({position: "absolute", top: 0, left: 0, width: 14, height: 14});
+            let visible_btn = $("<div>").addClass("text-white rounded-circle bg-secondary layer-op-button").appendTo(item).css({top: 0, left: 0 }).hide();
+            $("<i>").addClass(layer.visible? "fas fa-eye fa-sm": "fas fa-eye-slash fa-sm").appendTo(visible_btn).addClass("layer-op-icon").css({top: 0, left: 0, width: 14, height: 14 });
     
             // Controller
             item.on("click", (ev)=>{
-                console.log("Select layer")
                 this.image.select_layer(i);        
                 this.update();
             }).on("mouseenter", (ev)=>{
@@ -427,6 +478,8 @@ $(window).on("resize", resize_canvas);
 
 ipcRenderer.on("screen-size", (event, bounds) => {
     let canvas = $('#canvas')[0];
+    let layer_list_dom = $('#layer-list');
+    let brush_palette_dom = $("#brush-palette");
 
     function create_new_image(bounds) {
         if (image)
@@ -459,19 +512,23 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     CavnasViewer(canvas, image);
     let layer_list_view    = new LayerListView();
     let brush_op           = new MyPaintBrushOperation(libinput);
-    let brush_palette_view = new BrushPaletteView(brush_op);
+    let brush_palette_view = new BrushPaletteView();
+    let current_op         = null;
 
-    layer_list_view.bind($('#layer-list'), image);
-    brush_op.bind(canvas, image, layer_list_view);
-    brush_palette_view.bind($("#brush-palette"));
+    current_op = brush_op;
+
+    layer_list_view.bind(layer_list_dom, image);
+    current_op.bind(canvas, image, layer_list_view);
+    brush_palette_view.bind(brush_palette_dom, current_op);
 
     $("#file-load").on("click", () =>{
         format_ora.load("test.ora").then((result)=>{
             image.dispose();
             image = result;
-            CavnasViewer($('#canvas')[0], image);
-            brush_op.bind(canvas, image, layer_list_view);
-            layer_list_view.bind($('#layer-list'), image);
+            CavnasViewer(canvas, image);
+            current_op.bind(canvas, image, layer_list_view);
+            layer_list_view.bind(layer_list_dom, image);
+            brush_palette_view.bind(brush_palette_dom, current_op);
             image.update_all_async();
         });
     });
@@ -500,14 +557,14 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i) => {
         $(i).on("mouseenter", (ev)=>{
-            if (!brush_op.painting) {
+            if (!current_op.painting) {
                 console.log("suspend");
                 libinput.suspend();
             }
             ev.stopPropagation();
         });
         $(i).on("mouseleave", (ev)=>{
-            if (!brush_op.painting) {
+            if (!current_op.painting) {
                 console.log("resume");
                 libinput.resume();
             }
@@ -515,13 +572,13 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     });
 
     $(document.body).on("mouseenter",(ev) => {
-        if (!brush_op.painting) {
+        if (!current_op.painting) {
             console.log("resume");
             libinput.resume();
         }
     });
     $(document.body).on("mouseleave", (ev)=>{
-        if (!brush_op.painting) {
+        if (!current_op.painting) {
             console.log("suspend");
             libinput.suspend();
         }
@@ -540,8 +597,29 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $('#new-file').on("click", ()=>{
         // ToDo: required confirmation if image is modified.
         create_new_image(bounds);
-        CavnasViewer($('#canvas')[0], image);
-        brush_op.bind(canvas, image, layer_list_view);
-        layer_list_view.bind($('#layer-list'), image);
+        CavnasViewer(canvas, image);
+        layer_list_view.bind(layer_list_dom, image);
+        brush_palette_view.bind(brush_palette_dom, current_op);
+        current_op.bind(canvas, image, layer_list_view);
     });
+
+    $('#paint').on("click", ()=>{
+        $('#eraser').removeClass("text-primary").addClass("text-secondary");
+        $('#paint').removeClass("text-secondary").addClass("text-primary");
+        current_op = brush_op;
+        current_op.brush().suspend();
+        current_op.default_mode = 1;
+        current_op.brush().resume();
+    });
+
+    $('#eraser').on("click", ()=>{
+        $('#paint').removeClass("text-primary").addClass("text-secondary");
+        $('#eraser').removeClass("text-secondary").addClass("text-primary");
+        current_op = brush_op;
+        current_op.brush().suspend();
+        current_op.default_mode = 2;
+        current_op.brush().resume();
+    });
+    $('#eraser').removeClass("text-primary").addClass("text-secondary");
+    $('#paint').removeClass("text-secondary").addClass("text-primary");
 })

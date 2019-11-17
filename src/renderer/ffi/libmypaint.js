@@ -6,6 +6,14 @@ import gegl from '../ffi/gegl';
 import lib_config from '../resources/lib_config'
 let libmypaint;
 
+function brush_setting_id(cname) {
+    return libmypaint.mypaint_brush_setting_from_cname(cname);
+}
+
+function brush_setting_info(cname) {
+    let id = brush_setting_id(cname);
+    return libmypaint.mypaint_brush_setting_info(id).deref();
+}
 export class MypaintBrush {
     constructor(brush) {
         this.brush = brush;
@@ -16,26 +24,90 @@ export class MypaintBrush {
             libmypaint.mypaint_brush_unref(this.brush);
     }
 
-    get_setting_id(cname) {
-        return libmypaint.mypaint_brush_setting_from_cname(cname);
+    base_value(cname,...args) {
+        let id = this.get_setting_id(cname);
+        if (args.length == 0) {
+            return libmypaint.mypaint_brush_get_base_value(this.brush, id);
+        } else if (args.length == 1) {
+            libmypaint.mypaint_brush_set_base_value(this.brush, id, args[0]);
+        }
+    }
+};
+MypaintBrush.prototype.get_setting_id = brush_setting_id;
+MypaintBrush.prototype.setting_info = brush_setting_info;
+
+export class MyPaintBrushModifier {
+    constructor(_default_dict = {}) {
+        this.default_dict = _default_dict;
+    }
+
+    set_default(_default_dict) {
+        Object.assign(this.default_dict, _default_dict);
+    }
+
+    bind(_orig) {
+        if (this._orig_brush)
+            this.unbind();
+        this._orig_brush = _orig;
+        this.brush = _orig.brush;
+        this.dict = {};
+        if (this.default_dict) {
+            for (let i in this.default_dict) {
+                this.base_value(i, this.default_dict[i]);
+            }
+        }
+    }
+
+    unbind() {
+        if (this._orig_brush) {
+            for (let i in this.dict) {
+                let orig_value = this.dict[i];
+                this._orig_brush.base_value(i, orig_value);
+            }
+            this._orig_brush = null;
+        }
+        this.dict = {};
+    }
+
+    suspend() {
+        if (this._orig_brush) {
+            this.suspended = {};
+            for (let i in this.dict) {
+                this.suspended[i] = this._orig_brush.base_value(i);
+            }
+            for (let i in this.dict) {
+                let orig_value = this.dict[i];
+                this._orig_brush.base_value(i, orig_value);
+            }
+        }
+    }
+
+    resume() {
+        if (this._orig_brush) {
+            if (this.suspended) {
+                for (let i in this.suspended) {
+                    this._orig_brush.base_value(i, this.suspended[i]);
+                }
+                this.suspended = null;
+            }
+        }
     }
 
     base_value(cname,...args) {
         let id = this.get_setting_id(cname);
         if (args.length == 0) {
-            let result= libmypaint.mypaint_brush_get_base_value(this.brush, id);
-            console.log(cname+":"+result);
-            return result;
+            return this._orig_brush.base_value(cname);
         } else if (args.length == 1) {
-            libmypaint.mypaint_brush_set_base_value(this.brush, id, args[0]);
+            console.log("set base_value for "+cname+"="+id)
+            if (this.dict[cname] === undefined)
+                this.dict[cname] = this._orig_brush.base_value(cname);
+            this._orig_brush.base_value(cname, ...args);
         }
     }
-
-    setting_info(cname) {
-        let id = this.get_setting_id(cname);
-        return libmypaint.mypaint_brush_setting_info(id).deref();
-    }
 };
+MyPaintBrushModifier.prototype.get_setting_id = brush_setting_id;
+MyPaintBrushModifier.prototype.setting_info = brush_setting_info;
+
 export class LibMyPaint {
     constructor(lib_config) {
         this.MyPaintBrush = ref.types.void;

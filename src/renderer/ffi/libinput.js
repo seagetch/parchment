@@ -178,6 +178,7 @@ class LibInput {
                 y: this.current_bounds? this.libinput_event_tablet_tool_get_y_transformed(event, this.current_bounds.height) + this.current_bounds.y: -1,
                 button: this.libinput_event_tablet_tool_get_button(event),
                 time: this.libinput_event_tablet_tool_get_time(event),
+//                tool_type: this.libinput_tablet_tool_get_type(this.libinput_event_tablet_tool_get_tool(event)),
                 event_type: "button"
             }
             this.events.emit("tablet", ev_tablet);
