@@ -331,7 +331,9 @@ class BrushPaletteView {
             max: this.context.brush().setting_info("radius_logarithmic").max, 
             step: "any"
         }).on("input", (ev)=>{
+            this.context.brush().resume();
             this.context.brush().base_value("radius_logarithmic", $('#radius-edit').val());
+            this.context.brush().suspend();
         }).val(this.context.brush().base_value("radius_logarithmic"));
 
         $('#opacity-edit').attr({
@@ -339,7 +341,9 @@ class BrushPaletteView {
             max: this.context.brush().setting_info("opaque").max, 
             step: "any"
         }).on("input", (ev)=>{
+            this.context.brush().resume();
             this.context.brush().base_value("opaque", $('#opacity-edit').val());
+            this.context.brush().suspend();
         }).val(this.context.brush().base_value("opaque"));
     }
 
