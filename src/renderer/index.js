@@ -330,39 +330,43 @@ class BucketFillOperation {
         let offset_y = tablet.y - (client.top + window.screenTop);
         if (tablet.pressure > 0) {
             if (tablet.tool_type == 1 && !this.painting) {
-                gegl.with_buffer(gegl.gegl_buffer_new(null, gegl.babl_format("R'G'B'A u8")), (buffer)=> {
+                gegl.with_buffer(gegl.gegl_buffer_new(null, gegl.babl_format("YA float")), (buffer)=> {
                 gegl.with_node((top_node)=>{
                     let source  = gegl.node(top_node, {operation: 'gegl:buffer-source', buffer: this.image.current_layer().buffer });
-                    /*
-                    let fill    = gegl.node(top_node, {
-                        operation: 'gegl:nop' 
-                    });
-                    */
+                    let source2  = gegl.node(top_node, {operation: 'gegl:buffer-source', buffer: buffer });
                     console.log("define fill")
                     let fill    = gegl.node(top_node, {
                         operation: 'gegl:bucket-fill', 
-                        antialias: false, 
+                        transparent: true, 
+                        antialias: true, 
                         threshold: 0, 
-                        select_transparent: false, 
-                        select_criterion: BigInt(0), 
+                        criterion: BigInt(0), 
                         x: offset_x, 
                         y: offset_y 
                     });
-                    let alpha = gegl.node(top_node, {
-                        operation: 'gegl:color-to-alpha',
-                        color: gegl.gegl_color_new('black')
+                    let conv = gegl.node(top_node, {
+                        operation: 'gegl:write-buffer',
+                        buffer: buffer
                     });
-                    console.log("w="+this.image.width+",h="+this.image.height)
                     let color   = gegl.node(top_node, {
                         operation: 'gegl:rectangle', 
                         color: gegl.gegl_color_new("blue"),
                         x: 0, y:0, width: this.image.width, height: this.image.height
                     });
+                    let alpha = gegl.node(top_node, {
+                        operation: 'gegl:color-to-alpha',
+                    });
+                    source.connect_to(fill);
                     let mask  = gegl.node(top_node, {operation: 'gegl:multiply'});
                     let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: this.image.current_layer().buffer});
-                    source.connect_to(fill, alpha);
                     color.connect_to(mask, write);
-                    alpha.output().connect_to(mask.aux());
+                    let over = gegl.node(top_node, {
+                        operation: 'gegl:over',
+                    });
+//                    source2.connect_to(alpha);
+                    fill.output().connect_to(over.aux());
+                    source2.connect_to(over)
+                    over.output().connect_to(mask.aux());
                     write.process();
                 });
                 });
