@@ -142,6 +142,10 @@ export class Gegl {
         gegl.PBabl = ref.refType(gegl.Babl);
         gegl.GeglColor = ref.types.void;
         gegl.PGeglColor = ref.refType(gegl.GeglColor);
+        gegl.GimpBoundSeg = Struct({
+            'x1': 'int', 'y1': 'int', 'x2': 'int', 'y2': 'int', 'flag': 'uint'
+        });
+        gegl.PGimpBoundSeg = ref.refType(gegl.GimpBoundSeg);
 
         gegl.GEGL_ABYSS_NONE  = BigInt(0);
         gegl.GEGL_ABYSS_CLAMP = BigInt(1);
@@ -178,6 +182,9 @@ export class Gegl {
         gegl.GEGL_BLIT_CACHE    = BigInt(1 << 0);
         gegl.GEGL_BLIT_DIRTY    = BigInt(1 << 1);
 
+        gegl.GeglModule = ref.types.void;
+        gegl.PGeglModule = ref.refType(gegl.GeglModule);
+
         const strings = ArrayType('string');
         // FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
         Object.assign(gegl, ffi.Library(lib_config['libbabl'], {
@@ -210,10 +217,15 @@ export class Gegl {
             'gegl_color_new': [gegl.PGeglColor, ['string']],
             'gegl_rectangle_bounding_box': ['void', [gegl.PGeglRectangle, gegl.PGeglRectangle, gegl.PGeglRectangle]],
             'gegl_rectangle_intersect': ['void', [gegl.PGeglRectangle, gegl.PGeglRectangle, gegl.PGeglRectangle]],
+            'gegl_module_new': [gegl.PGeglModule,['string', 'bool', 'bool']]
         }));
         Object.assign(gegl, ffi.Library(lib_config['libgobject'], {
             'g_object_unref': ['void',['pointer']],
         //    'g_signal_connect': [,['pointer']],
+        }));
+        Object.assign(gegl, ffi.Library(lib_config['libgeglext'], {
+            'gimp_boundary_find': [gegl.PGimpBoundSeg,[gegl.PGeglBuffer, gegl.PGeglRectangle, gegl.PBabl, 'int', 'int', 'int', 'int', 'int', 'float', 'int *']],
+            'gimp_boundary_sort': [gegl.PGimpBoundSeg,[gegl.PGimpBoundSeg, 'int', 'int *']]
         }));
 
         gegl.GeglRectangle.prototype.combine_with = function(r) {
@@ -224,6 +236,9 @@ export class Gegl {
             gegl.gegl_rectangle_intersect(this.ref(), this.ref(), r.ref());
             return this;
         }
+
+        gegl.modules = [];
+        gegl.modules.push(gegl.gegl_module_new(lib_config['libgeglext'], false, true));
     };
 
     init() {

@@ -137,9 +137,13 @@ class MyPaintBrushOperation {
         this.libinput.on("swipe", this.swipe.bind(this));
     }
     unbind() {
-        this.image.off('layer-selected');
-        this.libinput.off("tablet");
-        this.libinput.off("swipe");
+        try {
+            this.image.off('layer-selected');
+        } catch(e){}
+        try {
+            this.libinput.off("tablet");
+            this.libinput.off("swipe");
+        } catch(e) {}
         this.image = null;
         this.layer_list_view = null;
         this.canvas = null;
@@ -267,6 +271,116 @@ class MyPaintBrushOperation {
     }
 }
 
+class BucketFillOperation {
+    constructor(libinput, canvas = null, image = null, layer_list_view = null) {
+        this.libinput = libinput;
+        this.image = null;
+        this.painting = false;
+        if (canvas && image && layer_list_view)
+            this.bind(canvas, image, layer_list_view);
+    }
+
+    bind(canvas, image, layer_list_view) {
+        this.dispose();
+        if (this.image) {
+            try {
+                image.off("layer-selected");
+            } catch(e) {
+                console.log(e);
+            }
+        }
+        if (this.libinput) {
+            try {
+                this.libinput.off("tablet");
+                this.libinput.off("swipe");
+            } catch (e) {
+                console.log(e);
+            }
+        }
+        this.image = image;
+        this.layer_list_view = layer_list_view;
+        this.canvas = canvas;
+        this.image.on('layer-selected', this.on_change_current_layer.bind(this));
+        this.image.select_layer(this.image.current_layer()?-1: 0);
+        this.libinput.on("tablet", this.tablet_motion.bind(this));
+        this.libinput.on("swipe", this.swipe.bind(this));
+    }
+    unbind() {
+        try {
+            this.image.off('layer-selected');
+        } catch(e) {
+        }
+        try {
+            this.libinput.off("tablet");
+            this.libinput.off("swipe");
+        } catch(e) {}
+        this.image = null;
+        this.layer_list_view = null;
+        this.canvas = null;
+        this.dispose();
+    }
+    dispose() {
+    }
+
+    tablet_motion(tablet) {
+        if (!this.image)
+            return;
+        let client = this.canvas.getBoundingClientRect();
+        let offset_x = tablet.x - (client.left + window.screenLeft);
+        let offset_y = tablet.y - (client.top + window.screenTop);
+        if (tablet.pressure > 0) {
+            if (tablet.tool_type == 1 && !this.painting) {
+                gegl.with_buffer(gegl.gegl_buffer_new(null, gegl.babl_format("R'G'B'A u8")), (buffer)=> {
+                gegl.with_node((top_node)=>{
+                    let source  = gegl.node(top_node, {operation: 'gegl:buffer-source', buffer: this.image.current_layer().buffer });
+                    /*
+                    let fill    = gegl.node(top_node, {
+                        operation: 'gegl:nop' 
+                    });
+                    */
+                    console.log("define fill")
+                    let fill    = gegl.node(top_node, {
+                        operation: 'gegl:bucket-fill', 
+                        antialias: false, 
+                        threshold: 0, 
+                        select_transparent: false, 
+                        select_criterion: BigInt(0), 
+                        x: offset_x, 
+                        y: offset_y 
+                    });
+                    let alpha = gegl.node(top_node, {
+                        operation: 'gegl:color-to-alpha',
+                        color: gegl.gegl_color_new('black')
+                    });
+                    console.log("w="+this.image.width+",h="+this.image.height)
+                    let color   = gegl.node(top_node, {
+                        operation: 'gegl:rectangle', 
+                        color: gegl.gegl_color_new("blue"),
+                        x: 0, y:0, width: this.image.width, height: this.image.height
+                    });
+                    let mask  = gegl.node(top_node, {operation: 'gegl:multiply'});
+                    let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: this.image.current_layer().buffer});
+                    source.connect_to(fill, alpha);
+                    color.connect_to(mask, write);
+                    alpha.output().connect_to(mask.aux());
+                    write.process();
+                });
+                });
+                this.painting = true;
+                
+                this.image.update_all_async();
+            }
+        } else {
+            if (this.painting)
+                this.painting = false;
+        }
+    }
+    swipe(event) {
+    };
+
+    on_change_current_layer(group, current_layer) {
+    }
+}
 class BrushPaletteView {
     constructor() {
         this.brushes = null;
@@ -513,6 +627,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     CavnasViewer(canvas, image);
     let layer_list_view    = new LayerListView();
     let brush_op           = new MyPaintBrushOperation(libinput);
+    let bucket_fill_op     = new BucketFillOperation(libinput);
     let brush_palette_view = new BrushPaletteView();
     let current_op         = null;
 
@@ -607,7 +722,10 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $('#paint').on("click", ()=>{
         $('#eraser').removeClass("text-primary").addClass("text-secondary");
         $('#paint').removeClass("text-secondary").addClass("text-primary");
+        $('#bucket-fill').removeClass("text-primary").addClass("text-secondary");
+        current_op.unbind();
         current_op = brush_op;
+        current_op.bind(canvas, image, layer_list_view);
         current_op.default_mode = 1;
         brush_palette_view.update();
     });
@@ -615,10 +733,23 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $('#eraser').on("click", ()=>{
         $('#paint').removeClass("text-primary").addClass("text-secondary");
         $('#eraser').removeClass("text-secondary").addClass("text-primary");
+        $('#bucket-fill').removeClass("text-primary").addClass("text-secondary");
+        current_op.unbind();
         current_op = brush_op;
+        current_op.bind(canvas, image, layer_list_view);
         current_op.default_mode = 2;
         brush_palette_view.update();
     });
-    $('#eraser').removeClass("text-primary").addClass("text-secondary");
+    $('#bucket-fill').on("click", ()=>{
+        $('#paint').removeClass("text-primary").addClass("text-secondary");
+        $('#eraser').removeClass("text-primary").addClass("text-secondary");
+        $('#bucket-fill').removeClass("text-secondary").addClass("text-primary");
+        current_op.unbind();
+        current_op = bucket_fill_op;
+        current_op.bind(canvas, image, layer_list_view);
+        current_op.default_mode = 2;
+    });
     $('#paint').removeClass("text-secondary").addClass("text-primary");
+    $('#eraser').removeClass("text-primary").addClass("text-secondary");
+    $('#bucket-fill').removeClass("text-primary").addClass("text-secondary");
 })
