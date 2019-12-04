@@ -44,9 +44,9 @@ export class Node {
                 args.push(v);
             } else if (typeof(v) === 'boolean') {
                 types.push('string');
-                types.push('bool');
+                types.push('int');
                 args.push(i.toString())
-                args.push(v);
+                args.push(v? true: false);
             } else if (typeof(v) === 'undefined') {
                 types.push('string');
                 types.push('pointer');
