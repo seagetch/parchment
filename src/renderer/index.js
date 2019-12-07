@@ -2,6 +2,7 @@ const { ipcRenderer } = require('electron')
 const ref = require('ref-napi');
 const path = require('path');
 const process = require("process");
+const cconv = require('color-convert');
 
 import gegl from './ffi/gegl';
 import RasterImage from './rasterlib/image';
@@ -330,48 +331,33 @@ class BucketFillOperation {
         let offset_y = tablet.y - (client.top + window.screenTop);
         if (tablet.pressure > 0) {
             if (tablet.tool_type == 1 && !this.painting) {
-                gegl.with_buffer(gegl.gegl_buffer_new(null, gegl.babl_format("YA float")), (buffer)=> {
-                gegl.with_node((top_node)=>{
-                    let source  = gegl.node(top_node, {operation: 'gegl:buffer-source', buffer: this.image.current_layer().buffer });
-                    let source2  = gegl.node(top_node, {operation: 'gegl:buffer-source', buffer: buffer });
-                    console.log("define fill")
-                    let fill    = gegl.node(top_node, {
-                        operation: 'gegl:bucket-fill', 
-                        transparent: true, 
-                        antialias: true, 
-                        threshold: 0, 
-                        criterion: BigInt(0), 
-                        x: offset_x, 
-                        y: offset_y 
-                    });
-                    let conv = gegl.node(top_node, {
-                        operation: 'gegl:write-buffer',
-                        buffer: buffer
-                    });
-                    let color   = gegl.node(top_node, {
-                        operation: 'gegl:rectangle', 
-                        color: gegl.gegl_color_new("blue"),
-                        x: 0, y:0, width: this.image.width, height: this.image.height
-                    });
-                    let alpha = gegl.node(top_node, {
-                        operation: 'gegl:color-to-alpha',
-                    });
-                    source.connect_to(fill);
-                    let mask  = gegl.node(top_node, {operation: 'gegl:multiply'});
-                    let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: this.image.current_layer().buffer});
-                    color.connect_to(mask, write);
-                    let over = gegl.node(top_node, {
-                        operation: 'gegl:over',
-                    });
-//                    source2.connect_to(alpha);
-                    fill.output().connect_to(over.aux());
-                    source2.connect_to(over)
-                    over.output().connect_to(mask.aux());
-                    write.process();
-                });
-                });
+                let bounds = gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref();
+                let bounds2 = gegl.gegl_buffer_get_extent(this.image.buffer).deref();
+                let undo = new LayerBufferUndo(this.image, this.image.current_layer());
+                undo.start();
+
+                gegl.gegl_buffer_set_extent(this.image.current_layer().buffer, bounds2.ref());
+                let rgb = cconv.hsv.rgb([color_fg[0] * 360, color_fg[1] * 100, color_fg[2] * 100]);
+                let rgb_text = "rgb("+(rgb[0] / 255)+","+(rgb[1] / 255)+","+(rgb[2] / 255)+")";
+                gegl.process([
+                    { operation: 'gegl:write-buffer', buffer: this.image.current_layer().buffer },
+                    { operation: 'gegl:over',
+                      aux: [{ operation: 'gegl:opacity', 
+                              aux:   [{ operation: 'gegl:bucket-fill', 
+                                        transparent: true, antialias: true, 
+                                        threshold: 0.1, criterion: BigInt(0), 
+                                        x: offset_x, y: offset_y,}, 
+                                      { operation: 'gegl:buffer-source', buffer: this.image.buffer }],
+                              input: [{ operation: 'gegl:rectangle', 
+                                        color: gegl.gegl_color_new(rgb_text),
+                                        x: 0, y:0, width: this.image.width, height: this.image.height }]
+                            }],
+                      input: [{ operation: 'gegl:buffer-source', buffer: this.image.current_layer().buffer }] }
+                ]);
                 this.painting = true;
-                
+                undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
+                this.image.undos.push(undo);
+
                 this.image.update_all_async();
             }
         } else {
@@ -419,10 +405,10 @@ class BrushPaletteView {
             })
         }
         let fg = $("#color-fg");
-        $("input", fg).attr("value", "hsv("+color_fg[0]+","+color_fg[1]+","+color_fg[2]+")");
+        let cfg = cconv.hsv.rgb(color_fg[0] * 360, color_fg[1] * 100, color_fg[2] * 100);
+        $("input", fg).attr("value", "rgb("+cfg[0]+","+cfg[1]+","+cfg[2]+")");
         fg.colorpicker().on("colorpickerChange", (e)=>{
             color_fg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
-            console.log(color_fg);
         }).on("colorpickerShow", (ev) =>{
             console.log("colorpickerShow");
             libinput.grab_pointer();
@@ -432,10 +418,10 @@ class BrushPaletteView {
         });
 
         let bg = $("#color-bg");
-        $("input", bg).attr("value", "hsv("+color_bg[0]+","+color_bg[1]+","+color_bg[2]+")");
+        let cbg = cconv.hsv.rgb(color_bg[0] * 360, color_bg[1] * 100, color_bg[2] * 100);
+        $("input", bg).attr("value", "rgb("+cbg[0]+","+cbg[1]+","+cbg[2]+")");
         bg.colorpicker().on("colorpickerChange", (e)=>{
             color_bg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
-            console.log(color_bg);
         }).on("colorpickerShow", (ev) =>{
             console.log("colorpickerShow");
             libinput.grab_pointer();

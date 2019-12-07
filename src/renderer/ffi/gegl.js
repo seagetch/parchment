@@ -46,7 +46,7 @@ export class Node {
                 types.push('string');
                 types.push('int');
                 args.push(i.toString())
-                args.push(v? true: false);
+                args.push(v? 1: 0);
             } else if (typeof(v) === 'undefined') {
                 types.push('string');
                 types.push('pointer');
@@ -263,6 +263,38 @@ export class Gegl {
         let result = callback(top_node);
         top_node.dispose();
         return result;
+    }
+    process(def, callback = null) {
+        this.with_node((top_node)=>{
+            let nodes_recursive = (list) => {
+                let result = null;
+                for (let i = 0; i < list.length; i ++) {
+                    let input = list[i].input;
+                    let aux   = list[i].aux;
+                    delete list[i].input;
+                    delete list[i].aux;
+                    let n = this.node(top_node, list[i]);
+                    if (!result)
+                        result = n;
+                    else {
+                        n.output().connect_to(result.input());
+                    }
+                        
+                    if (input) {
+                        nodes_recursive(input).output().connect_to(n.input());
+                    }
+                    if (aux) {
+                        nodes_recursive(aux).output().connect_to(n.aux());
+                    }
+                }
+                return result;
+            };
+            let result = nodes_recursive(def);
+            if (callback)
+                callback(result);
+            else
+                result.process();
+        });
     }
 }
 
