@@ -8,11 +8,12 @@ import gegl from './ffi/gegl';
 import RasterImage from './rasterlib/image';
 import RasterLayer from './rasterlib/layer';
 import LayerGroup from './rasterlib/layergroup';
-import LayerBufferUndo from './rasterlib/layerbufferundo';
 import libinput from './ffi/libinput';
-import mypaint, {MypaintBrush, MyPaintBrushModifier} from './ffi/libmypaint';
+import mypaint, {MypaintBrush} from './ffi/libmypaint';
 import * as layerundo from './rasterlib/layerundo';
 import * as format_ora from './rasterlib/format/ora';
+import MyPaintBrushOperation from "./paint-tools/paintbrush";
+import BucketFillOperation from "./paint-tools/bucketfill";
 const brush_loader = require('./resources/brushset')(mypaint);
 
 const $ = require("jquery");
@@ -34,12 +35,68 @@ require("mdbootstrap");
 
 import "./utils"
 
-var color_fg = [  0,   0,   0];
-var color_bg = [  0,   0,   1];
+class Editor {
+    constructor() {
+        this.color_fg = [  0,   0,   0];
+        this.color_bg = [  0,   0,   1];
+        
+        this.image = null;        
+    }
 
-var image = null;
+    new_image(bounds) {
+        if (this.image)
+            this.image.dispose();
+        this.image = new RasterImage(bounds.width, bounds.height);
+        let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
+        let lrect = new gegl.GeglRectangle();
+        lrect.x = 0;
+        lrect.y = 0;
+        lrect.width = bounds.width;
+        lrect.height = bounds.height;
+        gegl.with_node((top_node)=>{
+            let rect  = gegl.node(top_node, {operation: 'gegl:rectangle', x: 0, y:0, width: bounds.width, height: bounds.height, color: gegl.gegl_color_new("rgb(1, 1, 1)")});
+            let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: base_layer.buffer});
+            rect.output().connect_to(write.input());
+            gegl.gegl_buffer_set_extent(base_layer.buffer, write.bounding_box().ref());
+            write.process();
+        });
+        this.image.add_layer(base_layer);
+        let layer = new RasterLayer(0, 0, -1, -1);
+        this.image.add_layer(layer);
+    
+        this.image.select_layer(1);
+        this.image.update_all_async();
+    }
 
+    add_layer() {
+        let current_layer = this.image.current_layer();
+        let group = current_layer.parent;
+        let index = group.layers.indexOf(current_layer) + 1;
+        let layer = new RasterLayer(0, 0, -1, -1);
+        group.insert_layer(layer, index);
+        this.image.undos.push(new layerundo.InsertLayerUndo(layer, group, index));
+    }
 
+    undo() {
+        console.log("undo");
+        let drect = this.image.undos.undo();
+        if (drect)
+            this.image.update_async(drect.x, drect.y, drect.width, drect.height);
+        else
+            this.image.update_all_async();
+    }
+
+    redo() {
+        console.log("redo");
+        let drect = this.image.undos.redo();
+        if (drect)
+            this.image.update_async(drect.x, drect.y, drect.width, drect.height);
+        else
+            this.image.update_all_async();
+    }
+};
+
+let editor = new Editor();
 
 function CavnasViewer(canvas, image) {
     let on_image_update = (image, x, y, w, h) => {
@@ -70,317 +127,18 @@ function LibInputWatcher(screen_size) {
     libinput.current_bounds = screen_size;
     libinput.watch();
 }
-class MyPaintBrushOperation {
-    constructor(libinput, canvas = null, image = null, layer_list_view = null) {
-        this.libinput = libinput;
-        this.brushes = [null];
-        this.brushes.push(new MyPaintBrushModifier());
-        this.brushes.push(new MyPaintBrushModifier({"eraser": 1}));
-        this.painting = false;
-        this.last_event = {x: 0, y: 0, time: 0}
-        this.min_x = null; 
-        this.min_y = null;
-        this.max_x = null;
-        this.max_y = null;
-        this.undo = null;
-        this.move_count = 0;
-        this.gegl_surface = null;
-        this.surface_extent = null;
-        this.surface = null;
-        this.total_dx = null;
-        this.total_dy = null;
-        this.default_mode = 1;
-        if (canvas && image && layer_list_view)
-            this.bind(canvas, image, layer_list_view);
-    }
-
-    brush(index = 1) {
-        if (index == 1) {
-            return this.brushes[this.default_mode];
-        } else {
-            return this.brushes[index];
-        }
-    }
-
-    set_brush(_brush, tablet_button = 1) {
-        if (tablet_button == 1) {
-            this.brushes[this.default_mode].bind(_brush);
-            this.brushes[this.default_mode].suspend();
-        } else {
-            this.brushes[tablet_button].bind(_brush);
-            this.brushes[tablet_button].suspend();
-        }
-    }
-
-    bind(canvas, image, layer_list_view) {
-        this.dispose();
-        if (this.image) {
-            try {
-                image.off("layer-selected");
-            } catch(e) {
-                console.log(e);
-            }
-        }
-        if (this.libinput) {
-            try {
-                this.libinput.off("tablet");
-                this.libinput.off("swipe");
-            } catch (e) {
-                console.log(e);
-            }
-        }
-        this.image = image;
-        this.layer_list_view = layer_list_view;
-        this.canvas = canvas;
-        this.image.on('layer-selected', this.on_change_current_layer.bind(this));
-        this.image.select_layer(this.image.current_layer()?-1: 0);
-        this.libinput.on("tablet", this.tablet_motion.bind(this));
-        this.libinput.on("swipe", this.swipe.bind(this));
-    }
-    unbind() {
-        try {
-            this.image.off('layer-selected');
-        } catch(e){}
-        try {
-            this.libinput.off("tablet");
-            this.libinput.off("swipe");
-        } catch(e) {}
-        this.image = null;
-        this.layer_list_view = null;
-        this.canvas = null;
-        this.dispose();
-    }
-    dispose() {
-        if (this.gegl_surface) {
-            mypaint.mypaint_surface_unref(this.gegl_surface);
-            mypaint.mypaint_surface_unref(this.surface);
-            this.gegl_surface = null;
-            this.surface = null;
-        }
-    }
-
-    tablet_motion(tablet) {
-        if (!this.image || !this.surface || !this.brush)
-            return;
-        let client = this.canvas.getBoundingClientRect();
-        let offset_x = tablet.x - (client.left + window.screenLeft);
-        let offset_y = tablet.y - (client.top + window.screenTop);
-        if (tablet.pressure > 0) {
-            if (!this.painting) {
-                // Press Event
-                this.painting = true;
-                console.log("resume "+tablet.tool_type);
-
-                this.brush(tablet.tool_type).resume();
-                this.brush(tablet.tool_type).base_value("color_h", color_fg[0]);
-                this.brush(tablet.tool_type).base_value("color_s", color_fg[1]);
-                this.brush(tablet.tool_type).base_value("color_v", color_fg[2]);
-                mypaint.mypaint_brush_new_stroke(this.brush(tablet.tool_type).brush);
-                this.min_x = offset_x; this.min_y = offset_y; this.max_x = offset_x; this.max_y = offset_y;
-                this.undo = new LayerBufferUndo(this.image, this.image.current_layer());
-                this.surface_extent = new gegl.GeglRectangle();
-                let current_extent = gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref();
-                this.surface_extent.x = current_extent.x;
-                this.surface_extent.y = current_extent.y;
-                this.surface_extent.width = current_extent.width;
-                this.surface_extent.height = current_extent.height;
-                this.undo.start();
-                ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i)=>{
-                    $(i).css({opacity: 0.3})
-                });
-            } else {
-                // Motion Event
-                let dtime = (tablet.time - this.last_event.time)/1000.0;
-                let rect = new mypaint.MyPaintRectangle();
-                mypaint.mypaint_surface_begin_atomic(this.surface);
-                mypaint.mypaint_brush_stroke_to(this.brush(tablet.tool_type).brush, this.surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
-                mypaint.mypaint_surface_end_atomic(this.surface, rect.ref());
-                if (rect.width > 0 && rect.height > 0) {
-                    if (rect.x < this.min_x) this.min_x = rect.x;
-                    if (rect.y < this.min_y) this.min_y = rect.y;
-                    if (this.max_x < rect.x + rect.width) this.max_x = rect.x + rect.width;
-                    if (this.max_y < rect.y + rect.height) this.max_y = rect.y + rect.height;
-                }
-                this.last_event = tablet;
-                let do_update = () => {
-                    this.image.update_async(rect.x, rect.y, rect.width, rect.height);
-                }
-                if (this.move_count % 5 == 0) {
-                    do_update();
-                    this.move_count = 0;
-                } else {
-                    setImmediate(do_update)
-                }
-                this.move_count ++;
-            
-            }
-        } else {
-            if (this.painting) {
-                // Release Event
-                mypaint.mypaint_brush_reset(this.brush(tablet.tool_type).brush);
-                let bounds = new mypaint.MyPaintRectangle();
-                this.surface_extent.combine_with(gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref());
-                gegl.gegl_buffer_set_extent(this.image.current_layer().buffer, this.surface_extent.ref());
-                bounds.x = this.min_x;
-                bounds.y = this.min_y;
-                bounds.width = this.max_x - this.min_x;
-                bounds.height = this.max_y - this.min_y;
-                this.undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
-                this.image.undos.push(this.undo);
-                this.undo = null;
-                console.log("update "+bounds.x+","+bounds.y+","+bounds.width+","+bounds.height)
-                this.image.update_async(bounds.x, bounds.y, bounds.width, bounds.height);
-                ['.tool-box', '.vertical-tool-box',  '.horizontal-tool-box'].forEach((i)=>{
-                    $(i).css({opacity: 1.0})
-                });
-                this.layer_list_view.update();
-                console.log("suspend "+tablet.tool_type);
-                this.brush(tablet.tool_type).suspend();
-            }
-            this.painting = false;
-        }
-    }
-    swipe(event) {
-        switch (event.event_type) {
-            case 'begin':
-                this.total_dx = 0;
-                this.total_dy = 0;
-                console.log("swipe: start: "+this.total_dx+","+this.total_dy);
-                break;
-            case 'update':
-                this.total_dx += event.dx;
-                this.total_dy += event.dy;
-                break;
-            case 'end':
-                if (event.cancelled) {
-
-                } else {
-                    console.log("swipe: total: "+this.total_dx+","+this.total_dy);
-                }
-                break;
-        };
-    };
-
-    on_change_current_layer(group, current_layer) {
-        if (this.gegl_surface) {
-            mypaint.mypaint_surface_unref(this.gegl_surface);
-            mypaint.mypaint_surface_unref(this.surface);
-        }
-        this.gegl_surface = mypaint.mypaint_gegl_tiled_surface_new();
-        mypaint.mypaint_gegl_tiled_surface_set_buffer(this.gegl_surface, current_layer.buffer);
-        this.surface = mypaint.mypaint_gegl_tiled_surface_interface(this.gegl_surface);
-    }
-}
-
-class BucketFillOperation {
-    constructor(libinput, canvas = null, image = null, layer_list_view = null) {
-        this.libinput = libinput;
-        this.image = null;
-        this.painting = false;
-        if (canvas && image && layer_list_view)
-            this.bind(canvas, image, layer_list_view);
-    }
-
-    bind(canvas, image, layer_list_view) {
-        this.dispose();
-        if (this.image) {
-            try {
-                image.off("layer-selected");
-            } catch(e) {
-                console.log(e);
-            }
-        }
-        if (this.libinput) {
-            try {
-                this.libinput.off("tablet");
-                this.libinput.off("swipe");
-            } catch (e) {
-                console.log(e);
-            }
-        }
-        this.image = image;
-        this.layer_list_view = layer_list_view;
-        this.canvas = canvas;
-        this.image.on('layer-selected', this.on_change_current_layer.bind(this));
-        this.image.select_layer(this.image.current_layer()?-1: 0);
-        this.libinput.on("tablet", this.tablet_motion.bind(this));
-        this.libinput.on("swipe", this.swipe.bind(this));
-    }
-    unbind() {
-        try {
-            this.image.off('layer-selected');
-        } catch(e) {
-        }
-        try {
-            this.libinput.off("tablet");
-            this.libinput.off("swipe");
-        } catch(e) {}
-        this.image = null;
-        this.layer_list_view = null;
-        this.canvas = null;
-        this.dispose();
-    }
-    dispose() {
-    }
-
-    tablet_motion(tablet) {
-        if (!this.image)
-            return;
-        let client = this.canvas.getBoundingClientRect();
-        let offset_x = tablet.x - (client.left + window.screenLeft);
-        let offset_y = tablet.y - (client.top + window.screenTop);
-        if (tablet.pressure > 0) {
-            if (tablet.tool_type == 1 && !this.painting) {
-                let bounds = gegl.gegl_buffer_get_extent(this.image.current_layer().buffer).deref();
-                let bounds2 = gegl.gegl_buffer_get_extent(this.image.buffer).deref();
-                let undo = new LayerBufferUndo(this.image, this.image.current_layer());
-                undo.start();
-
-                gegl.gegl_buffer_set_extent(this.image.current_layer().buffer, bounds2.ref());
-                let rgb = cconv.hsv.rgb([color_fg[0] * 360, color_fg[1] * 100, color_fg[2] * 100]);
-                let rgb_text = "rgb("+(rgb[0] / 255)+","+(rgb[1] / 255)+","+(rgb[2] / 255)+")";
-                gegl.process([
-                    { operation: 'gegl:write-buffer', buffer: this.image.current_layer().buffer },
-                    { operation: 'gegl:over',
-                      aux: [{ operation: 'gegl:opacity', 
-                              aux:   [{ operation: 'gegl:bucket-fill', 
-                                        transparent: true, antialias: true, 
-                                        threshold: 0.1, criterion: BigInt(0), 
-                                        x: offset_x, y: offset_y,}, 
-                                      { operation: 'gegl:buffer-source', buffer: this.image.buffer }],
-                              input: [{ operation: 'gegl:rectangle', 
-                                        color: gegl.gegl_color_new(rgb_text),
-                                        x: 0, y:0, width: this.image.width, height: this.image.height }]
-                            }],
-                      input: [{ operation: 'gegl:buffer-source', buffer: this.image.current_layer().buffer }] }
-                ]);
-                this.painting = true;
-                undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
-                this.image.undos.push(undo);
-
-                this.image.update_all_async();
-            }
-        } else {
-            if (this.painting)
-                this.painting = false;
-        }
-    }
-    swipe(event) {
-    };
-
-    on_change_current_layer(group, current_layer) {
-    }
-}
 class BrushPaletteView {
     constructor() {
         this.brushes = null;
         this.init();
     }
 
-    bind(list, context) {
+    bind(list, editor, context) {
         this.list = list;
+        this.editor = editor;
         this.context = context;
         for (let i = 1; i < 3; i ++) {
+            // Should be consider the case where context is not a brush.
             this.context.set_brush(this.default_brush, i);
         }
         this.update();
@@ -405,10 +163,10 @@ class BrushPaletteView {
             })
         }
         let fg = $("#color-fg");
-        let cfg = cconv.hsv.rgb(color_fg[0] * 360, color_fg[1] * 100, color_fg[2] * 100);
+        let cfg = cconv.hsv.rgb(this.editor.color_fg[0] * 360, this.editor.color_fg[1] * 100, this.editor.color_fg[2] * 100);
         $("input", fg).attr("value", "rgb("+cfg[0]+","+cfg[1]+","+cfg[2]+")");
         fg.colorpicker().on("colorpickerChange", (e)=>{
-            color_fg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
+            this.editor.color_fg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
         }).on("colorpickerShow", (ev) =>{
             console.log("colorpickerShow");
             libinput.grab_pointer();
@@ -418,10 +176,10 @@ class BrushPaletteView {
         });
 
         let bg = $("#color-bg");
-        let cbg = cconv.hsv.rgb(color_bg[0] * 360, color_bg[1] * 100, color_bg[2] * 100);
+        let cbg = cconv.hsv.rgb(this.editor.color_bg[0] * 360, this.editor.color_bg[1] * 100, this.editor.color_bg[2] * 100);
         $("input", bg).attr("value", "rgb("+cbg[0]+","+cbg[1]+","+cbg[2]+")");
         bg.colorpicker().on("colorpickerChange", (e)=>{
-            color_bg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
+            this.editor.color_bg = [e.color.hue / 360, e.color.saturation / 100, e.color.value / 100];
         }).on("colorpickerShow", (ev) =>{
             console.log("colorpickerShow");
             libinput.grab_pointer();
@@ -460,15 +218,15 @@ class BrushPaletteView {
 }
 
 class LayerListView {
-    constructor(list = null, image = null) {
-        if (list && image)
-            this.bind(list, image);
+    constructor(list = null, editor = null) {
+        if (list && editor)
+            this.bind(list, editor);
     }
 
-    bind(list, image) {
+    bind(list, editor) {
         this.unbind();
         this.list = list;
-        this.image = image;
+        this.editor = editor;
         this.dragged_layer_index = null;
         this.list.sortable({
             delay: 250,
@@ -481,9 +239,9 @@ class LayerListView {
                 let layer = ui.item[0]["related-layer"];
                 let dropped_layer_index = layer.parent.layers.length - 1 - ui.item.index();
                 layer.parent.reorder_layer(layer, dropped_layer_index);
-                this.image.undos.push(new layerundo.ReorderLayerUndo(layer, this.image, this.dragged_layer_index, dropped_layer_index));
+                this.editor.image.undos.push(new layerundo.ReorderLayerUndo(layer, this.editor.image, this.dragged_layer_index, dropped_layer_index));
                 this.update();
-                this.image.update_all_async();
+                this.editor.image.update_all_async();
                 libinput.ungrab_pointer();
             },
 
@@ -494,20 +252,20 @@ class LayerListView {
         if (this.list)
             this.list.sortable("destroy");
         this.list = null;
-        this.image = null;
+        this.editor = null;
     }
     update() {
         this.list.html("");
 
-        for (let i = this.image.layers.length - 1; i >= 0; i --) {
+        for (let i = this.editor.image.layers.length - 1; i >= 0; i --) {
             // Extract Model
-            let layer = this.image.layers[i];
+            let layer = this.editor.image.layers[i];
             let thumb = layer.thumbnail(48);
     
             // View
             let item = $("<li>").css({width: 50, height: 50, position: "relative", "list-style": "none", margin: "0", padding: "0"}).addClass("rounded tool-item checkerboard-10 my-1").appendTo(this.list);
             item[0]["related-layer"] = layer;
-            if (layer == this.image.current_layer())
+            if (layer == this.editor.image.current_layer())
                 item.addClass("border-primary");
     
             let img  = $("<canvas>").css({width: thumb.width, height: thumb.height}).appendTo(item);
@@ -526,7 +284,7 @@ class LayerListView {
     
             // Controller
             item.on("click", (ev)=>{
-                this.image.select_layer(i);        
+                this.editor.image.select_layer(i);        
                 this.update();
             }).on("mouseenter", (ev)=>{
                 delete_btn.show();
@@ -544,20 +302,20 @@ class LayerListView {
     
             delete_btn.on("click", (ev)=>{
                 console.log("remove layer "+layer)
-                let updated = (this.image.current_layer() == layer);
-                let index = this.image.layers.indexOf(layer);
+                let updated = (this.editor.image.current_layer() == layer);
+                let index = this.editor.image.layers.indexOf(layer);
                 if (index >= 0) {
-                    this.image.remove_layer(layer);
-                    this.image.undos.push(new layerundo.RemoveLayerUndo(layer, this.image, index));
+                    this.editor.image.remove_layer(layer);
+                    this.editor.image.undos.push(new layerundo.RemoveLayerUndo(layer, this.editor.image, index));
                     this.update();
                 }
-                this.image.update_all_async();
+                this.editor.image.update_all_async();
                 return false
             });
             visible_btn.on("click",(ev)=>{
                 console.log("visible")
                 layer.set_visibility(!layer.visible);
-                this.image.update_all_async();
+                this.editor.image.update_all_async();
                 this.update();
                 return false;
             });
@@ -569,8 +327,8 @@ function resize_canvas() {
     let canvas = $("#canvas")[0];
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    if (image)
-        image.update_all_async();
+    if (editor.image)
+        editor.image.update_all_async();
 }
 
 
@@ -585,36 +343,11 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     let canvas = $('#canvas')[0];
     let layer_list_dom = $('#layer-list');
     let brush_palette_dom = $("#brush-palette");
-
-    function create_new_image(bounds) {
-        if (image)
-            image.dispose();
-        image = new RasterImage(bounds.width, bounds.height);
-        let base_layer = new RasterLayer(0, 0, bounds.width, bounds.height);
-        let lrect = new gegl.GeglRectangle();
-        lrect.x = 0;
-        lrect.y = 0;
-        lrect.width = bounds.width;
-        lrect.height = bounds.height;
-        gegl.with_node((top_node)=>{
-            let rect  = gegl.node(top_node, {operation: 'gegl:rectangle', x: 0, y:0, width: bounds.width, height: bounds.height, color: gegl.gegl_color_new("rgb(1, 1, 1)")});
-            let write = gegl.node(top_node, {operation: 'gegl:write-buffer', buffer: base_layer.buffer});
-            rect.output().connect_to(write.input());
-            gegl.gegl_buffer_set_extent(base_layer.buffer, write.bounding_box().ref());
-            write.process();
-        });
-        image.add_layer(base_layer);
-        let layer = new RasterLayer(0, 0, -1, -1);
-        image.add_layer(layer);
-    
-        image.select_layer(1);
-        image.update_all_async();
-    }
     
     LibInputWatcher(bounds);
 
-    create_new_image(bounds);
-    CavnasViewer(canvas, image);
+    editor.new_image(bounds);
+    CavnasViewer(canvas, editor.image);
     let layer_list_view    = new LayerListView();
     let brush_op           = new MyPaintBrushOperation(libinput);
     let bucket_fill_op     = new BucketFillOperation(libinput);
@@ -623,42 +356,32 @@ ipcRenderer.on("screen-size", (event, bounds) => {
 
     current_op = brush_op;
 
-    layer_list_view.bind(layer_list_dom, image);
-    current_op.bind(canvas, image, layer_list_view);
-    brush_palette_view.bind(brush_palette_dom, current_op);
+    layer_list_view.bind(layer_list_dom, editor);
+    current_op.bind(canvas, editor, layer_list_view);
+    brush_palette_view.bind(brush_palette_dom, editor, current_op);
 
     $("#file-load").on("click", () =>{
         format_ora.load("test.ora").then((result)=>{
-            image.dispose();
-            image = result;
-            CavnasViewer(canvas, image);
-            current_op.bind(canvas, image, layer_list_view);
-            layer_list_view.bind(layer_list_dom, image);
-            brush_palette_view.bind(brush_palette_dom, current_op);
-            image.update_all_async();
+            editor.image.dispose();
+            editor.image = result;
+            CavnasViewer(canvas, editor.image);
+            current_op.bind(canvas, editor, layer_list_view);
+            layer_list_view.bind(layer_list_dom, editor);
+            brush_palette_view.bind(brush_palette_dom, editor, current_op);
+            editor.image.update_all_async();
         });
     });
     $("#file-save").on("click", () =>{
-        format_ora.save(image, "test.ora");
+        format_ora.save(editor.image, "test.ora");
     });
 
     $("#undo").on("click", ()=>{
-        console.log("undo");
-        let drect = image.undos.undo();
+        editor.undo();
         layer_list_view.update();
-        if (drect)
-            image.update_async(drect.x, drect.y, drect.width, drect.height);
-        else
-            image.update_all_async();
     });
     $("#redo").on("click", ()=>{
-        console.log("redo");
-        let drect = image.undos.redo();
+        editor.redo();
         layer_list_view.update();
-        if (drect)
-            image.update_async(drect.x, drect.y, drect.width, drect.height);
-        else
-            image.update_all_async();
     });
 
     ['.tool-box', '.vertical-tool-box', '.horizontal-tool-box'].forEach((i) => {
@@ -691,22 +414,17 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     });
 
     $('#add-layer').on("click", () => {
-        let current_layer = image.current_layer();
-        let group = current_layer.parent;
-        let index = group.layers.indexOf(current_layer) + 1;
-        let layer = new RasterLayer(0, 0, -1, -1);
-        group.insert_layer(layer, index);
-        image.undos.push(new layerundo.InsertLayerUndo(layer, group, index));
+        editor.add_layer();
         layer_list_view.update();
     });
 
     $('#new-file').on("click", ()=>{
         // ToDo: required confirmation if image is modified.
-        create_new_image(bounds);
-        CavnasViewer(canvas, image);
-        layer_list_view.bind(layer_list_dom, image);
-        brush_palette_view.bind(brush_palette_dom, current_op);
-        current_op.bind(canvas, image, layer_list_view);
+        editor.new_image(bounds);
+        CavnasViewer(canvas, editor.image);
+        layer_list_view.bind(layer_list_dom, editor);
+        brush_palette_view.bind(brush_palette_dom, editor, current_op);
+        current_op.bind(canvas, editor, layer_list_view);
     });
 
     $('#paint').on("click", ()=>{
@@ -715,7 +433,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         $('#bucket-fill').removeClass("text-primary").addClass("text-secondary");
         current_op.unbind();
         current_op = brush_op;
-        current_op.bind(canvas, image, layer_list_view);
+        current_op.bind(canvas, editor, layer_list_view);
         current_op.default_mode = 1;
         brush_palette_view.update();
     });
@@ -726,7 +444,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         $('#bucket-fill').removeClass("text-primary").addClass("text-secondary");
         current_op.unbind();
         current_op = brush_op;
-        current_op.bind(canvas, image, layer_list_view);
+        current_op.bind(canvas, editor, layer_list_view);
         current_op.default_mode = 2;
         brush_palette_view.update();
     });
@@ -736,8 +454,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
         $('#bucket-fill').removeClass("text-secondary").addClass("text-primary");
         current_op.unbind();
         current_op = bucket_fill_op;
-        current_op.bind(canvas, image, layer_list_view);
-        current_op.default_mode = 2;
+        current_op.bind(canvas, editor, layer_list_view);
     });
     $('#paint').removeClass("text-secondary").addClass("text-primary");
     $('#eraser').removeClass("text-primary").addClass("text-secondary");
