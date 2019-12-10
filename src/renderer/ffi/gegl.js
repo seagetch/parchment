@@ -210,6 +210,7 @@ export class Gegl {
             'gegl_buffer_get_abyss':[gegl.PGeglRectangle, [gegl.PGeglBuffer]],
             'gegl_buffer_set_extent':['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
             'gegl_buffer_set_abyss': ['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
+            'gegl_buffer_set_color':['void', [gegl.PGeglBuffer, gegl.PGeglRectangle, gegl.PGeglColor]],
             'gegl_buffer_clear': ['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
             'gegl_color_new': ['pointer', ['string']],
             'gegl_node_process': ['void', [gegl.PGeglNode]],

@@ -57,7 +57,8 @@ export default class BucketFillOperation {
 
                 gegl.gegl_buffer_set_extent(this.editor.image.current_layer().buffer, bounds2.ref());
                 let rgb = cconv.hsv.rgb([this.editor.color_fg[0] * 360, this.editor.color_fg[1] * 100, this.editor.color_fg[2] * 100]);
-                let rgb_text = "rgb("+(rgb[0] / 255)+","+(rgb[1] / 255)+","+(rgb[2] / 255)+")";
+                // FIXME: temporary Convert RGB to sRGB directly.
+                let rgb_text = "rgb("+Math.pow(rgb[0] / 255, 2.18)+","+Math.pow(rgb[1] / 255, 2.18)+","+Math.pow(rgb[2] / 255, 2.18)+")";
                 gegl.process([
                     { operation: 'gegl:write-buffer', buffer: this.editor.image.current_layer().buffer },
                     { operation: 'gegl:over',
