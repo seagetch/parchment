@@ -45,9 +45,12 @@ export default class BucketFillOperation {
     tablet_motion(tablet) {
         if (!this.editor || !this.editor.image)
             return;
+            /*
         let client = this.canvas.getBoundingClientRect();
         let offset_x = tablet.x - (client.left + window.screenLeft);
         let offset_y = tablet.y - (client.top + window.screenTop);
+        */
+        let offsets = this.editor.viewport.to_image_coord(tablet.x, tablet.y);
         if (tablet.pressure > 0) {
             if (tablet.tool_type == 1 && !this.painting) {
                 let bounds = gegl.gegl_buffer_get_extent(this.editor.image.current_layer().buffer).deref();
@@ -59,6 +62,7 @@ export default class BucketFillOperation {
                 let rgb = cconv.hsv.rgb([this.editor.color_fg[0] * 360, this.editor.color_fg[1] * 100, this.editor.color_fg[2] * 100]);
                 // FIXME: temporary Convert RGB to sRGB directly.
                 let rgb_text = "rgb("+Math.pow(rgb[0] / 255, 2.18)+","+Math.pow(rgb[1] / 255, 2.18)+","+Math.pow(rgb[2] / 255, 2.18)+")";
+                console.log("Start fill")
                 gegl.process([
                     { operation: 'gegl:write-buffer', buffer: this.editor.image.current_layer().buffer },
                     { operation: 'gegl:over',
@@ -66,7 +70,7 @@ export default class BucketFillOperation {
                               aux:   [{ operation: 'gegl:bucket-fill', 
                                         transparent: true, antialias: true, 
                                         threshold: 0.1, criterion: BigInt(0), 
-                                        x: offset_x, y: offset_y,}, 
+                                        x: offsets[0], y: offsets[1],}, 
                                       { operation: 'gegl:buffer-source', buffer: this.editor.image.buffer }],
                               input: [{ operation: 'gegl:rectangle', 
                                         color: gegl.gegl_color_new(rgb_text),
@@ -74,6 +78,7 @@ export default class BucketFillOperation {
                             }],
                       input: [{ operation: 'gegl:buffer-source', buffer: this.editor.image.current_layer().buffer }] }
                 ]);
+                console.log("End fill")
                 this.painting = true;
                 undo.stop(bounds.x, bounds.y, bounds.width, bounds.height);
                 this.editor.image.undos.push(undo);

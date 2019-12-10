@@ -81,9 +81,12 @@ export default class MyPaintBrushOperation {
     tablet_motion(tablet) {
         if (!this.editor.image || !this.surface || !this.brush)
             return;
+            /*
         let client = this.canvas.getBoundingClientRect();
         let offset_x = tablet.x - (client.left + window.screenLeft);
         let offset_y = tablet.y - (client.top + window.screenTop);
+        */
+        let offsets = this.editor.viewport.to_image_coord(tablet.x, tablet.y);
         if (tablet.pressure > 0) {
             if (!this.painting) {
                 // Press Event
@@ -95,7 +98,7 @@ export default class MyPaintBrushOperation {
                 this.brush(tablet.tool_type).base_value("color_s", this.editor.color_fg[1]);
                 this.brush(tablet.tool_type).base_value("color_v", this.editor.color_fg[2]);
                 mypaint.mypaint_brush_new_stroke(this.brush(tablet.tool_type).brush);
-                this.min_x = offset_x; this.min_y = offset_y; this.max_x = offset_x; this.max_y = offset_y;
+                this.min_x = offsets[0]; this.min_y = offsets[1]; this.max_x = offsets[0]; this.max_y = offsets[1];
                 this.undo = new LayerBufferUndo(this.editor.image, this.editor.image.current_layer());
                 this.surface_extent = new gegl.GeglRectangle();
                 let current_extent = gegl.gegl_buffer_get_extent(this.editor.image.current_layer().buffer).deref();
@@ -112,7 +115,7 @@ export default class MyPaintBrushOperation {
                 let dtime = (tablet.time - this.last_event.time)/1000.0;
                 let rect = new mypaint.MyPaintRectangle();
                 mypaint.mypaint_surface_begin_atomic(this.surface);
-                mypaint.mypaint_brush_stroke_to(this.brush(tablet.tool_type).brush, this.surface, offset_x, offset_y, tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
+                mypaint.mypaint_brush_stroke_to(this.brush(tablet.tool_type).brush, this.surface, offsets[0], offsets[1], tablet.pressure, tablet.tilt_x, tablet.tilt_y, dtime);
                 mypaint.mypaint_surface_end_atomic(this.surface, rect.ref());
                 if (rect.width > 0 && rect.height > 0) {
                     if (rect.x < this.min_x) this.min_x = rect.x;

@@ -35,12 +35,43 @@ require("mdbootstrap");
 
 import "./utils"
 
+class Viewport {
+    constructor() {
+        this.h_flipped = false;
+        this.canvas = null;
+        this.center = 0;
+        this.scale = 1;
+    }
+    bind(canvas) {
+        this.canvas = canvas;
+    }
+    unbind() {
+        this.canvas = null;
+    }
+
+    to_view_coord(x, y) {
+        return [x, y];
+    }
+
+    to_image_coord(x, y) {
+        if (!this.canvas)
+            return x, y;
+        let client = this.canvas.getBoundingClientRect();
+        let offset_x = x - (client.left + window.screenLeft);
+        if (this.h_flipped) {
+            offset_x = this.canvas.width - offset_x;
+        }
+        let offset_y = y - (client.top + window.screenTop);
+        return [offset_x, offset_y];                
+    }
+}
 class Editor {
     constructor() {
         this.color_fg = [  0,   0,   0];
         this.color_bg = [  0,   0,   1];
         
         this.image = null;        
+        this.viewport = new Viewport();
     }
 
     new_image(bounds) {
@@ -106,7 +137,7 @@ function CavnasViewer(canvas, image) {
         rect2.y = y;
         rect2.width = w;
         rect2.height = h;
-        image.lock(gegl.babl_format("R'G'B'A u8"), rect2, (buffer, stride) => {
+        image.lock(gegl.babl_format("R'aG'aB'aA u8"), rect2, (buffer, stride) => {
             var buf2 = ref.reinterpret(buffer, stride * rect2.height, 0);
             let imageData = null;
             if (stride == rect2.width * 4) {
@@ -346,6 +377,7 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     
     LibInputWatcher(bounds);
 
+    editor.viewport.bind(canvas);
     editor.new_image(bounds);
     CavnasViewer(canvas, editor.image);
     let layer_list_view    = new LayerListView();
@@ -459,4 +491,12 @@ ipcRenderer.on("screen-size", (event, bounds) => {
     $('#paint').removeClass("text-secondary").addClass("text-primary");
     $('#eraser').removeClass("text-primary").addClass("text-secondary");
     $('#bucket-fill').removeClass("text-primary").addClass("text-secondary");
+    $('#h-flip').on("click", ()=>{
+        editor.viewport.h_flipped = !editor.viewport.h_flipped;
+        $(canvas).css("transform", "scale("+(editor.viewport.h_flipped? -1: 1)+", 1)");
+        if (editor.viewport.h_flipped)
+            $('#h-flip').removeClass("text-primary").addClass("bg-primary text-white");
+        else
+            $('#h-flip').removeClass("bg-primary text-white").addClass("text-primary");
+    });
 })
