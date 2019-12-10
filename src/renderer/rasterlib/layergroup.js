@@ -4,7 +4,7 @@ const EventEmitter = require("events");
 
 export default class LayerGroup extends RasterLayer {
     constructor(x, y, width, height) {
-        super(x, y, width, height, gegl.babl_format("R'G'B'A u8"))
+        super(x, y, width, height, gegl.babl_format("R'aG'aB'aA u8"))
         this.layers = [];
         var rect = new gegl.GeglRectangle();
         this.parent = null;

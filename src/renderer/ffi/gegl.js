@@ -44,9 +44,9 @@ export class Node {
                 args.push(v);
             } else if (typeof(v) === 'boolean') {
                 types.push('string');
-                types.push('bool');
+                types.push('int');
                 args.push(i.toString())
-                args.push(v);
+                args.push(v? 1: 0);
             } else if (typeof(v) === 'undefined') {
                 types.push('string');
                 types.push('pointer');
@@ -142,6 +142,10 @@ export class Gegl {
         gegl.PBabl = ref.refType(gegl.Babl);
         gegl.GeglColor = ref.types.void;
         gegl.PGeglColor = ref.refType(gegl.GeglColor);
+        gegl.GimpBoundSeg = Struct({
+            'x1': 'int', 'y1': 'int', 'x2': 'int', 'y2': 'int', 'flag': 'uint'
+        });
+        gegl.PGimpBoundSeg = ref.refType(gegl.GimpBoundSeg);
 
         gegl.GEGL_ABYSS_NONE  = BigInt(0);
         gegl.GEGL_ABYSS_CLAMP = BigInt(1);
@@ -178,6 +182,9 @@ export class Gegl {
         gegl.GEGL_BLIT_CACHE    = BigInt(1 << 0);
         gegl.GEGL_BLIT_DIRTY    = BigInt(1 << 1);
 
+        gegl.GeglModule = ref.types.void;
+        gegl.PGeglModule = ref.refType(gegl.GeglModule);
+
         const strings = ArrayType('string');
         // FIXME: Absolute paths for library is required for my environment. Need to be resolved on-demand.
         Object.assign(gegl, ffi.Library(lib_config['libbabl'], {
@@ -203,6 +210,7 @@ export class Gegl {
             'gegl_buffer_get_abyss':[gegl.PGeglRectangle, [gegl.PGeglBuffer]],
             'gegl_buffer_set_extent':['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
             'gegl_buffer_set_abyss': ['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
+            'gegl_buffer_set_color':['void', [gegl.PGeglBuffer, gegl.PGeglRectangle, gegl.PGeglColor]],
             'gegl_buffer_clear': ['void', [gegl.PGeglBuffer, gegl.PGeglRectangle]],
             'gegl_color_new': ['pointer', ['string']],
             'gegl_node_process': ['void', [gegl.PGeglNode]],
@@ -210,10 +218,15 @@ export class Gegl {
             'gegl_color_new': [gegl.PGeglColor, ['string']],
             'gegl_rectangle_bounding_box': ['void', [gegl.PGeglRectangle, gegl.PGeglRectangle, gegl.PGeglRectangle]],
             'gegl_rectangle_intersect': ['void', [gegl.PGeglRectangle, gegl.PGeglRectangle, gegl.PGeglRectangle]],
+            'gegl_module_new': [gegl.PGeglModule,['string', 'bool', 'bool']]
         }));
         Object.assign(gegl, ffi.Library(lib_config['libgobject'], {
             'g_object_unref': ['void',['pointer']],
         //    'g_signal_connect': [,['pointer']],
+        }));
+        Object.assign(gegl, ffi.Library(lib_config['libgeglext'], {
+            'gimp_boundary_find': [gegl.PGimpBoundSeg,[gegl.PGeglBuffer, gegl.PGeglRectangle, gegl.PBabl, 'int', 'int', 'int', 'int', 'int', 'float', 'int *']],
+            'gimp_boundary_sort': [gegl.PGimpBoundSeg,[gegl.PGimpBoundSeg, 'int', 'int *']]
         }));
 
         gegl.GeglRectangle.prototype.combine_with = function(r) {
@@ -224,6 +237,9 @@ export class Gegl {
             gegl.gegl_rectangle_intersect(this.ref(), this.ref(), r.ref());
             return this;
         }
+
+        gegl.modules = [];
+        gegl.modules.push(gegl.gegl_module_new(lib_config['libgeglext'], false, true));
     };
 
     init() {
@@ -248,6 +264,38 @@ export class Gegl {
         let result = callback(top_node);
         top_node.dispose();
         return result;
+    }
+    process(def, callback = null) {
+        this.with_node((top_node)=>{
+            let nodes_recursive = (list) => {
+                let result = null;
+                for (let i = 0; i < list.length; i ++) {
+                    let input = list[i].input;
+                    let aux   = list[i].aux;
+                    delete list[i].input;
+                    delete list[i].aux;
+                    let n = this.node(top_node, list[i]);
+                    if (!result)
+                        result = n;
+                    else {
+                        n.output().connect_to(result.input());
+                    }
+                        
+                    if (input) {
+                        nodes_recursive(input).output().connect_to(n.input());
+                    }
+                    if (aux) {
+                        nodes_recursive(aux).output().connect_to(n.aux());
+                    }
+                }
+                return result;
+            };
+            let result = nodes_recursive(def);
+            if (callback)
+                callback(result);
+            else
+                result.process();
+        });
     }
 }
 
