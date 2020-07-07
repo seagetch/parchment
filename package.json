@@ -16,7 +16,7 @@
     "bootstrap-colorpicker": "^3.1.2",
     "cheerio": "^1.0.0-rc.3",
     "color-convert": "^2.0.1",
-    "electron": "^6.0.11",
+    "electron": "^9.1.0",
     "electron-rebuild": "^1.8.6",
     "epoll": "^3.0.0",
     "events": "^3.0.0",
