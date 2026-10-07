@@ -1,5 +1,15 @@
 # Parchment
 
+## Maintenance status — reference only
+
+This project is no longer maintained and is preserved solely as a historical and technical reference. No further development, dependency updates, bug fixes, or security fixes are planned.
+
+The repository contains outdated dependencies, including Electron `^6.0.11`. Known dependency vulnerabilities will remain unpatched. Do not use this software in production or to open untrusted files or content.
+
+The installation and usage instructions below are retained as historical documentation; they are not maintained or verified for current environments.
+
+---
+
 Electron-based painting software. (Currently testing technical feasibility to use electron as a base of graphics editing software.)
 
 ## Prerequisites
